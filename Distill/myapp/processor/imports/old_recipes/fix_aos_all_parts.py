@@ -1,7 +1,7 @@
 from __future__ import annotations
 from typing import Any
 from win32com.client import constants as C
-from ._utils import (
+from ...recipes_word._utils import (
     PT_PER_CM,
     looks_like_manual_number,
     replace_in_para,

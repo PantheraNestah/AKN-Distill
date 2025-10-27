@@ -248,6 +248,17 @@ def generate_custom_rules(selected_rules, preset='custom'):
                     'params': {'page_start': 1, 'page_end': 999}
                 }
             }]
+        },
+        'enforce_numeric_alignment_all_lists': {
+            'name': 'Enforce Numeric List Alignment',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'enforce_numeric_alignment_all_lists',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 999}
+                }
+            }]
         }
     }
 

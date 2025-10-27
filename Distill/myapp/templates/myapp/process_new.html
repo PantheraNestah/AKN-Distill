@@ -38,68 +38,50 @@
                         <i class="bi bi-info-circle"></i> Select at least one rule to process your document.
                     </div>
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="fix_aos_all_parts" id="rule1" checked>
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="no_space_after_number_all_lists_fix" id="rule1">
                         <label class="form-check-label" for="rule1">
-                            Add em-dash in section listings
-                            <small class="text-muted d-block">Recommended: Basic formatting for all documents</small>
+                            1. Remove Space After All List Numbers
+                            <small class="text-muted d-block">Removes space after numbers in all list levels</small>
                         </label>
                     </div>
+
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="no_space_after_number_all_lists" id="rule2" checked>
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="enforce_list_left_indents_level1to3" id="rule2">
                         <label class="form-check-label" for="rule2">
-                            Remove Space After All List Numbers
-                            <small class="text-muted d-block">Recommended: Applies consistent number spacing across all list levels</small>
+                            2. Enforce List Level Indents (1-3)
+                            <small class="text-muted d-block">Sets consistent indents for list levels 1-3 (0.3, 0.6, 0.9 inches)</small>
                         </label>
                     </div>
+
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="enforce_list_indents" id="rule3" checked>
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_all_tabs" id="rule3">
                         <label class="form-check-label" for="rule3">
-                            Enforce List Indents (Levels 1-3)
-                            <small class="text-muted d-block">Recommended: Sets consistent indentation for list levels (0.3, 0.6, 0.9 inches)</small>
+                            3. Remove All Tab Characters
+                            <small class="text-muted d-block">Removes all tab characters to prevent formatting inconsistencies</small>
                         </label>
                     </div>
+
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_all_tabs" id="rule4">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="lists_dot_to_emdash" id="rule4">
                         <label class="form-check-label" for="rule4">
-                            Remove All Tab Characters
-                            <small class="text-muted d-block">Cleans up manual tabs that can cause formatting issues</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule3">
-                        <label class="form-check-label" for="rule3">
-                            Remove space after level 2 numbers
-                            <small class="text-muted d-block">Legacy: Use only if all-levels rule doesn't work</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level3" id="rule3">
-                        <label class="form-check-label" for="rule3">
-                            Fix paragraph indentation (0.5 cm hanging)
-                            <small class="text-muted d-block">Standardizes paragraph indentation</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="tighten_level3_spacing" id="rule4">
-                        <label class="form-check-label" for="rule4">
-                            Tighten level 3 spacing
-                            <small class="text-muted d-block">Optimizes spacing between level 3 elements</small>
-                        </label>
-                    </div>
-                    
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="lists_dot_to_emdash" id="rule5">
-                        <label class="form-check-label" for="rule5">
-                            Convert list numbers to em dashes
+                            4. Convert List Numbers to Em Dashes
                             <small class="text-muted d-block">Converts numbered list items to use em dashes instead of dots</small>
                         </label>
                     </div>
 
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_spaces_around_em_dash" id="rule6">
-                        <label class="form-check-label" for="rule6">
-                            Clean up em dash spacing
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_spaces_around_em_dash" id="rule5">
+                        <label class="form-check-label" for="rule5">
+                            5. Remove Spaces Around Em Dashes
                             <small class="text-muted d-block">Removes extra spaces around em dashes for cleaner formatting</small>
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="enforce_numeric_alignment_all_lists" id="rule6">
+                        <label class="form-check-label" for="rule6">
+                            6. Enforce Numeric List Alignment
+                            <small class="text-muted d-block">Ensures consistent right-alignment of numbers in all list levels</small>
                         </label>
                     </div>
                 </div>
