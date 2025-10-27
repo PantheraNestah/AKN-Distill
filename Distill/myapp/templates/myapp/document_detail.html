@@ -1,0 +1,46 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Document Details</h1>
+    
+    <div class="card">
+        <div class="card-body">
+            <h5 class="card-title">{{ document.original_file.name }}</h5>
+            
+            <dl class="row">
+                <dt class="col-sm-3">Upload Date</dt>
+                <dd class="col-sm-9">{{ document.uploaded_at|date:"Y-m-d H:i" }}</dd>
+                
+                <dt class="col-sm-3">Status</dt>
+                <dd class="col-sm-9">
+                    <span class="badge {% if document.status == 'processed' %}bg-success{% elif document.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
+                        {{ document.get_status_display }}
+                    </span>
+                </dd>
+                
+                {% if document.error_message %}
+                <dt class="col-sm-3">Error</dt>
+                <dd class="col-sm-9">
+                    <div class="alert alert-danger">
+                        {{ document.error_message }}
+                    </div>
+                </dd>
+                {% endif %}
+            </dl>
+
+            <div class="mt-3">
+                {% if document.processed_file %}
+                <a href="{{ document.processed_file.url }}" class="btn btn-success">
+                    <i class="bi bi-download"></i> Download Processed File
+                </a>
+                {% endif %}
+
+                <a href="{% url 'document_list' %}" class="btn btn-secondary">
+                    <i class="bi bi-arrow-left"></i> Back to List
+                </a>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

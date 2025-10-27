@@ -1,0 +1,161 @@
+{% extends 'base.html' %}
+
+{% block title %}AKN Distill - Document Refinement{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Document Refinement</h1>
+
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link active" href="#options">Options</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#preview">Preview</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#changes">Changes / Log</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#download">Download</a>
+        </li>
+    </ul>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="mb-4">
+                    <label for="document" class="form-label">Upload Document (.docx)</label>
+                    <input type="file" class="form-control" id="document" name="document" accept=".docx" required>
+                    <div class="form-text">Tip: Use the latest AKN-formatted output to maximize rule accuracy.</div>
+                </div>
+
+                <div class="mb-4">
+                    <h5>Processing Rules</h5>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="rules" value="fix_aos_all_parts" id="rule1">
+                        <label class="form-check-label" for="rule1">
+                            Add em-dash in section listings
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule2">
+                        <label class="form-check-label" for="rule2">
+                            Remove space after list numbers
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="rules" value="follow_number_with_none_level3" id="rule3">
+                        <label class="form-check-label" for="rule3">
+                            Fix paragraph indentation (0.5 cm hanging)
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input" type="checkbox" name="rules" value="tighten_level3_spacing" id="rule4">
+                        <label class="form-check-label" for="rule4">
+                            Tighten level 3 spacing
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-primary">Apply Formatting</button>
+            </form>
+
+            <!-- Progress Bar (hidden by default) -->
+            <div id="processingProgress" class="mt-4" style="display: none;">
+                <div class="progress mb-3">
+                    <div class="progress-bar progress-bar-striped progress-bar-animated" 
+                         role="progressbar" 
+                         style="width: 0%" 
+                         id="progressBar">0%</div>
+                </div>
+                <div id="processingStatus" class="text-muted"></div>
+            </div>
+
+            <!-- Preview Section (hidden by default) -->
+            <div id="previewSection" class="mt-4" style="display: none;">
+                <h5>Document Preview</h5>
+                <div class="ratio ratio-16x9">
+                    <iframe id="previewFrame" src="" class="border"></iframe>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- WebSocket Processing Script -->
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const progressSection = document.getElementById('processingProgress');
+    const progressBar = document.getElementById('progressBar');
+    const statusText = document.getElementById('processingStatus');
+    const previewSection = document.getElementById('previewSection');
+    const previewFrame = document.getElementById('previewFrame');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Show progress section
+        progressSection.style.display = 'block';
+        submitBtn.disabled = true;
+        
+        // Submit form data
+        const formData = new FormData(form);
+        try {
+            const response = await fetch('', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            if (data.task_id) {
+                // Connect to WebSocket for progress updates
+                connectWebSocket(data.task_id);
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            statusText.textContent = 'Error starting process: ' + error.message;
+        }
+    });
+    
+    function connectWebSocket(documentId) {
+        const ws_scheme = window.location.protocol === "https:" ? "wss" : "ws";
+        const ws_path = ws_scheme + '://' + window.location.host + '/ws/process/' + documentId + '/';
+        console.log('Connecting to WebSocket:', ws_path);
+        const ws = new WebSocket(ws_path);
+        
+        ws.onerror = function(error) {
+            console.error('WebSocket Error:', error);
+            statusText.textContent = 'Error connecting to WebSocket';
+        };
+        
+        ws.onmessage = function(e) {
+            const data = JSON.parse(e.data);
+            
+            if (data.type === 'processing_update') {
+                // Update progress bar
+                progressBar.style.width = data.progress + '%';
+                progressBar.textContent = data.progress + '%';
+                statusText.textContent = data.message;
+            }
+            else if (data.type === 'processing_complete') {
+                // Show preview
+                previewSection.style.display = 'block';
+                previewFrame.src = data.preview_url;
+                submitBtn.disabled = false;
+            }
+        };
+        
+        ws.onclose = function() {
+            console.log('WebSocket closed unexpectedly');
+        };
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

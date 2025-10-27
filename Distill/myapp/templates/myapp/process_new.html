@@ -1,0 +1,271 @@
+{% extends 'base.html' %}
+
+{% block title %}AKN Distill - Document Refinement{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Document Refinement</h1>
+
+    <ul class="nav nav-tabs mb-4">
+        <li class="nav-item">
+            <a class="nav-link active" href="#options">Options</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#preview">Preview</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#changes">Changes / Log</a>
+        </li>
+        <li class="nav-item">
+            <a class="nav-link" href="#download">Download</a>
+        </li>
+    </ul>
+
+    <div class="card">
+        <div class="card-body">
+            <form method="post" enctype="multipart/form-data">
+                {% csrf_token %}
+                
+                <div class="mb-4">
+                    <label for="document" class="form-label">Upload Document (.docx)</label>
+                    <input type="file" class="form-control" id="document" name="document" accept=".docx" required>
+                    <div class="form-text">Tip: Use the latest AKN-formatted output to maximize rule accuracy.</div>
+                </div>
+
+                <div class="mb-4">
+                    <h5>Processing Rules</h5>
+                    <div class="alert alert-info">
+                        <i class="bi bi-info-circle"></i> Select at least one rule to process your document.
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="fix_aos_all_parts" id="rule1" checked>
+                        <label class="form-check-label" for="rule1">
+                            Add em-dash in section listings
+                            <small class="text-muted d-block">Recommended: Basic formatting for all documents</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule2">
+                        <label class="form-check-label" for="rule2">
+                            Remove space after list numbers
+                            <small class="text-muted d-block">Improves level 2 list formatting</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level3" id="rule3">
+                        <label class="form-check-label" for="rule3">
+                            Fix paragraph indentation (0.5 cm hanging)
+                            <small class="text-muted d-block">Standardizes paragraph indentation</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="tighten_level3_spacing" id="rule4">
+                        <label class="form-check-label" for="rule4">
+                            Tighten level 3 spacing
+                            <small class="text-muted d-block">Optimizes spacing between level 3 elements</small>
+                        </label>
+                    </div>
+                </div>
+
+                <button type="submit" id="submitBtn" class="btn btn-primary" disabled>Apply Formatting</button>
+
+                <script>
+                    // Enable submit button only when at least one rule is selected
+                    document.querySelectorAll('.rule-checkbox').forEach(checkbox => {
+                        checkbox.addEventListener('change', function() {
+                            const anyChecked = Array.from(document.querySelectorAll('.rule-checkbox'))
+                                .some(cb => cb.checked);
+                            document.getElementById('submitBtn').disabled = !anyChecked;
+                        });
+                    });
+                    
+                    // Initialize button state
+                    document.getElementById('submitBtn').disabled = !Array.from(document.querySelectorAll('.rule-checkbox'))
+                        .some(cb => cb.checked);
+                </script>
+            </form>
+
+            <!-- Status Container -->
+            <div id="statusContainer" class="mt-4">
+                <!-- Processing Overlay -->
+                <div id="processingOverlay" style="display: none;">
+                    <div class="card">
+                        <div class="card-body text-center">
+                            <div class="spinner-border text-primary mb-3" role="status">
+                                <span class="visually-hidden">Processing...</span>
+                            </div>
+                            <h5 id="processingStatus" class="mb-2">Processing document...</h5>
+                            <div class="progress mb-3" style="height: 10px;">
+                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                            </div>
+                            <div id="processingTime" class="small text-muted">Time elapsed: 0 seconds</div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Result Section -->
+                <div id="resultSection" style="display: none;">
+                    <div class="card border-success">
+                        <div class="card-header bg-success text-white">
+                            <i class="bi bi-check-circle-fill me-2"></i>Processing Complete
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title" id="completionMessage">Document processed successfully!</h5>
+                            <p class="card-text" id="processingStats"></p>
+                            <div class="d-flex gap-2">
+                                <a id="downloadLink" href="#" class="btn btn-success">
+                                    <i class="bi bi-download me-1"></i>Download Document
+                                </a>
+                                <a id="viewDetailsLink" href="#" class="btn btn-primary">
+                                    <i class="bi bi-eye me-1"></i>View Details
+                                </a>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Error Section -->
+                <div id="errorSection" style="display: none;">
+                    <div class="card border-danger">
+                        <div class="card-header bg-danger text-white">
+                            <i class="bi bi-exclamation-circle-fill me-2"></i>Processing Failed
+                        </div>
+                        <div class="card-body">
+                            <h5 class="card-title">An error occurred</h5>
+                            <p class="card-text" id="errorMessage"></p>
+                            <button class="btn btn-primary" onclick="window.location.reload()">
+                                <i class="bi bi-arrow-clockwise me-1"></i>Try Again
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+{% block extra_js %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const form = document.querySelector('form');
+    const submitBtn = document.getElementById('submitBtn');
+    const processingOverlay = document.getElementById('processingOverlay');
+    const resultSection = document.getElementById('resultSection');
+    const processingStatus = document.getElementById('processingStatus');
+    const downloadLink = document.getElementById('downloadLink');
+    const viewDetailsLink = document.getElementById('viewDetailsLink');
+    
+    form.addEventListener('submit', async function(e) {
+        e.preventDefault();
+        
+        // Show processing overlay
+        submitBtn.disabled = true;
+        processingOverlay.style.display = 'block';
+        resultSection.style.display = 'none';
+        
+        // Submit form data
+        const formData = new FormData(form);
+        try {
+            const response = await fetch('', {
+                method: 'POST',
+                body: formData
+            });
+            
+            const data = await response.json();
+            if (data.document_id) {
+                // Start polling for status
+                pollDocumentStatus(data.document_id);
+            } else {
+                throw new Error(data.error || 'Unknown error occurred');
+            }
+        } catch (error) {
+            console.error('Error:', error);
+            processingStatus.textContent = 'Error: ' + error.message;
+            submitBtn.disabled = false;
+        }
+    });
+    
+    async function pollDocumentStatus(documentId) {
+        const pollInterval = 1000; // Poll every second
+        let retryCount = 0;
+        const maxRetries = 300; // 5 minutes maximum
+        const startTime = new Date();
+        
+        // Start updating elapsed time
+        const timeCounter = setInterval(() => {
+            const elapsed = Math.round((new Date() - startTime) / 1000);
+            document.getElementById('processingTime').textContent = `Time elapsed: ${elapsed} seconds`;
+        }, 1000);
+
+        const poll = async () => {
+            try {
+                const response = await fetch(`/document/${documentId}/status/`);
+                const data = await response.json();
+                
+                if (data.is_complete) {
+                    clearInterval(timeCounter);
+                    
+                    if (data.status === 'COMPLETED') {
+                        // Update UI elements
+                        processingOverlay.style.display = 'none';
+                        resultSection.style.display = 'block';
+                        errorSection.style.display = 'none';
+                        
+                        // Set up links
+                        downloadLink.href = data.processed_file_url;
+                        viewDetailsLink.href = `/document/${documentId}/`;
+                        
+                        // Show completion stats
+                        const completedAt = new Date(data.processed_at);
+                        const timeTaken = Math.round((completedAt - startTime) / 1000);
+                        document.getElementById('processingStats').textContent = 
+                            `Processing completed in ${timeTaken} seconds`;
+                        
+                        // Automatically redirect after 3 seconds
+                        setTimeout(() => {
+                            window.location.href = `/document/${documentId}/`;
+                        }, 3000);
+                    } else {
+                        // Show error section
+                        processingOverlay.style.display = 'none';
+                        resultSection.style.display = 'none';
+                        errorSection.style.display = 'block';
+                        document.getElementById('errorMessage').textContent = 
+                            data.error_message || 'Processing failed';
+                        submitBtn.disabled = false;
+                    }
+                } else if (retryCount < maxRetries) {
+                    // Update processing message
+                    const minutes = Math.floor(retryCount / 60);
+                    const seconds = retryCount % 60;
+                    processingStatus.textContent = minutes > 0 ? 
+                        `Processing document... (${minutes}m ${seconds}s)` :
+                        `Processing document... (${seconds}s)`;
+                    retryCount++;
+                    setTimeout(poll, pollInterval);
+                } else {
+                    // Show timeout error
+                    clearInterval(timeCounter);
+                    processingOverlay.style.display = 'none';
+                    errorSection.style.display = 'block';
+                    document.getElementById('errorMessage').textContent = 
+                        'Processing timed out. Please try again.';
+                    submitBtn.disabled = false;
+                }
+            } catch (error) {
+                clearInterval(timeCounter);
+                console.error('Polling error:', error);
+                processingOverlay.style.display = 'none';
+                errorSection.style.display = 'block';
+                document.getElementById('errorMessage').textContent = 
+                    'Error checking status: ' + error.message;
+                submitBtn.disabled = false;
+            }
+        };
+
+        await poll();
+    }
+});
+</script>
+{% endblock %}
+{% endblock %}

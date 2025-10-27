@@ -1,0 +1,32 @@
+/* Custom styles */
+.container {
+    max-width: 1200px;
+}
+
+/* Add some spacing between table cells */
+.table td, .table th {
+    vertical-align: middle;
+}
+
+/* Style the file input */
+input[type="file"] {
+    padding: 8px;
+    border: 1px solid #ced4da;
+    border-radius: 4px;
+}
+
+/* Card styling */
+.card {
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    margin-bottom: 20px;
+}
+
+.card-title {
+    color: #333;
+    margin-bottom: 1rem;
+}
+
+/* Badge styling */
+.badge {
+    padding: 0.5em 1em;
+}

@@ -1,0 +1,64 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %}Processing Document - AKN Document Converter{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-0">Document Processing Status</h2>
+            </div>
+            <div class="card-body">
+                <div class="mb-4">
+                    <h4>Status: <span class="badge {% if document.status == 'COMPLETED' %}bg-success{% elif document.status == 'FAILED' %}bg-danger{% else %}bg-info{% endif %}">
+                        {{ document.status }}
+                    </span></h4>
+                </div>
+
+                <div class="mb-3">
+                    <p><strong>Original File:</strong> {{ document.original_file.name }}</p>
+                    <p><strong>Uploaded:</strong> {{ document.uploaded_at|date:"F j, Y, g:i a" }}</p>
+                    {% if document.processed_at %}
+                        <p><strong>Processed:</strong> {{ document.processed_at|date:"F j, Y, g:i a" }}</p>
+                    {% endif %}
+                </div>
+
+                {% if document.status == 'COMPLETED' and document.processed_file %}
+                    <div class="alert alert-success">
+                        <h5 class="alert-heading">Processing Complete!</h5>
+                        <p>Your document has been successfully converted. You can now download the processed PDF.</p>
+                        <a href="{% url 'download_file' document.id %}" class="btn btn-success">
+                            <i class="bi bi-download"></i> Download PDF
+                        </a>
+                    </div>
+                {% elif document.status == 'FAILED' %}
+                    <div class="alert alert-danger">
+                        <h5 class="alert-heading">Processing Failed</h5>
+                        <p>{{ document.error_message|default:"An error occurred during processing." }}</p>
+                        <a href="{% url 'task' %}" class="btn btn-primary">Try Again</a>
+                    </div>
+                {% else %}
+                    <div class="alert alert-info">
+                        <h5 class="alert-heading">Processing in Progress</h5>
+                        <p>Your document is being processed. This page will automatically refresh to show updates.</p>
+                        <div class="progress">
+                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                        </div>
+                    </div>
+                    <script>
+                        // Refresh the page every 5 seconds to check status
+                        setTimeout(function() {
+                            location.reload();
+                        }, 5000);
+                    </script>
+                {% endif %}
+
+                <div class="mt-3">
+                    <a href="{% url 'task' %}" class="btn btn-outline-primary">Upload Another Document</a>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
