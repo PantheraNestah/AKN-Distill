@@ -166,6 +166,36 @@ def generate_custom_rules(selected_rules, preset='custom'):
                 }
             }]
         },
+        'no_space_after_number_all_lists': {
+            'name': 'Remove Space After Numbers (All Levels)',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'no_space_after_number_all_lists_fix',
+                    'enabled': True
+                }
+            }]
+        },
+        'enforce_list_indents': {
+            'name': 'Enforce List Indents (Levels 1-3)',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'enforce_list_left_indents_level1to3',
+                    'enabled': True
+                }
+            }]
+        },
+        'remove_all_tabs': {
+            'name': 'Remove All Tab Characters',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'remove_all_tabs',
+                    'enabled': True
+                }
+            }]
+        },
         'follow_number_with_none_level2': {
             'name': 'Fix Level 2 Numbering',
             'select': {'document': True},
@@ -194,6 +224,28 @@ def generate_custom_rules(selected_rules, preset='custom'):
                 'word_recipe': {
                     'name': 'tighten_level3_spacing',
                     'enabled': True
+                }
+            }]
+        },
+        'lists_dot_to_emdash': {
+            'name': 'Convert List Numbers to Em Dashes',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'lists_dot_to_emdash',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 999}
+                }
+            }]
+        },
+        'remove_spaces_around_em_dash': {
+            'name': 'Remove Spaces Around Em Dashes',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'remove_spaces_around_em_dash',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 999}
                 }
             }]
         }

@@ -45,10 +45,31 @@
                         </label>
                     </div>
                     <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="no_space_after_number_all_lists" id="rule2" checked>
                         <label class="form-check-label" for="rule2">
-                            Remove space after list numbers
-                            <small class="text-muted d-block">Improves level 2 list formatting</small>
+                            Remove Space After All List Numbers
+                            <small class="text-muted d-block">Recommended: Applies consistent number spacing across all list levels</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="enforce_list_indents" id="rule3" checked>
+                        <label class="form-check-label" for="rule3">
+                            Enforce List Indents (Levels 1-3)
+                            <small class="text-muted d-block">Recommended: Sets consistent indentation for list levels (0.3, 0.6, 0.9 inches)</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_all_tabs" id="rule4">
+                        <label class="form-check-label" for="rule4">
+                            Remove All Tab Characters
+                            <small class="text-muted d-block">Cleans up manual tabs that can cause formatting issues</small>
+                        </label>
+                    </div>
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule3">
+                        <label class="form-check-label" for="rule3">
+                            Remove space after level 2 numbers
+                            <small class="text-muted d-block">Legacy: Use only if all-levels rule doesn't work</small>
                         </label>
                     </div>
                     <div class="form-check mb-2">
@@ -63,6 +84,22 @@
                         <label class="form-check-label" for="rule4">
                             Tighten level 3 spacing
                             <small class="text-muted d-block">Optimizes spacing between level 3 elements</small>
+                        </label>
+                    </div>
+                    
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="lists_dot_to_emdash" id="rule5">
+                        <label class="form-check-label" for="rule5">
+                            Convert list numbers to em dashes
+                            <small class="text-muted d-block">Converts numbered list items to use em dashes instead of dots</small>
+                        </label>
+                    </div>
+
+                    <div class="form-check mb-2">
+                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="remove_spaces_around_em_dash" id="rule6">
+                        <label class="form-check-label" for="rule6">
+                            Clean up em dash spacing
+                            <small class="text-muted d-block">Removes extra spaces around em dashes for cleaner formatting</small>
                         </label>
                     </div>
                 </div>
@@ -188,7 +225,7 @@ document.addEventListener('DOMContentLoaded', function() {
     async function pollDocumentStatus(documentId) {
         const pollInterval = 1000; // Poll every second
         let retryCount = 0;
-        const maxRetries = 300; // 5 minutes maximum
+        const maxRetries = 900; // 15 minutes maximum
         const startTime = new Date();
         
         // Start updating elapsed time
