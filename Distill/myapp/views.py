@@ -1,9 +1,10 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib import messages
-from django.http import HttpResponse, FileResponse
+from django.http import HttpResponse, FileResponse, JsonResponse
 from django.utils import timezone
-from .models import Document
+from .models import Document, RuleTaskState
 from .services.document_processor import DocumentProcessingService
+from .tasks import process_rule
 import logging
 import os
 import yaml
@@ -53,13 +54,8 @@ def process_document_view(request):
                 status='UPLOADED'
             )
 
-            # Start processing in background thread
-            thread = threading.Thread(
-                target=process_document_background,
-                args=(document.id, selected_rules)
-            )
-            thread.daemon = True
-            thread.start()
+            # Initialize background processing
+            initialize_document_processing(document.id, selected_rules)
 
             return JsonResponse({
                 'document_id': document.id,
@@ -77,12 +73,30 @@ def document_status(request, document_id):
     """Return the current status of a document being processed."""
     try:
         document = get_object_or_404(Document, id=document_id)
+        tasks = document.rule_tasks.all()
+        
+        # Calculate overall progress
+        total_tasks = tasks.count()
+        completed_tasks = tasks.filter(status='completed').count()
+        progress = (completed_tasks / total_tasks * 100) if total_tasks > 0 else 0
+        
         data = {
             'status': document.status,
             'error_message': document.error_message or '',
             'is_complete': document.status in ['COMPLETED', 'FAILED'],
             'processed_at': document.processed_at.isoformat() if document.processed_at else None,
+            'progress': progress,
+            'tasks': []
         }
+        
+        # Add task details
+        for task in tasks:
+            data['tasks'].append({
+                'rule_name': task.rule_name,
+                'status': task.status,
+                'error_message': task.error_message or '',
+                'processing_time': str(task.processing_time) if task.processing_time else None,
+            })
         
         if document.status == 'COMPLETED':
             data['processed_file_url'] = document.processed_file.url if document.processed_file else None
@@ -94,8 +108,8 @@ def document_status(request, document_id):
             'error': str(e)
         }, status=500)
 
-def process_document_background(document_id, selected_rules):
-    """Background task to process document."""
+def initialize_document_processing(document_id, selected_rules):
+    """Initialize document processing with background tasks."""
     document = Document.objects.get(id=document_id)
     
     try:
@@ -103,26 +117,27 @@ def process_document_background(document_id, selected_rules):
         document.status = 'PROCESSING'
         document.save()
 
-        # Generate custom rules
-        custom_rules = generate_custom_rules(selected_rules, 'custom')
-        logger.info(f"Applying selected rules: {selected_rules}")
+        # Create task states for each rule
+        for state, rule_name in enumerate(selected_rules):
+            RuleTaskState.objects.create(
+                document=document,
+                rule_name=rule_name,
+                status='pending',
+                state=state
+            )
 
-        # Initialize and run processor
-        processor = DocumentProcessingService()
-        success = processor.process_document(document, custom_rules)
-
-        if success:
-            document.status = 'COMPLETED'
-            document.processed_at = timezone.now()
-            document.save()
+        # Start the first rule
+        first_task = document.rule_tasks.filter(state=0).first()
+        if first_task:
+            process_rule(document_id, first_task.rule_name, 0)
         else:
-            raise Exception("Processing failed")
+            raise Exception("No rules to process")
 
     except Exception as e:
         document.status = 'FAILED'
         document.error_message = str(e)
         document.save()
-        logger.exception("Document processing failed")
+        logger.exception("Failed to initialize document processing")
 
 def generate_custom_rules(selected_rules, preset='custom'):
     """Generate a custom rules configuration based on selected rules."""

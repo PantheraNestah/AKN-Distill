@@ -110,13 +110,23 @@
                 <div id="processingOverlay" style="display: none;">
                     <div class="card">
                         <div class="card-body text-center">
-                            <div class="spinner-border text-primary mb-3" role="status">
-                                <span class="visually-hidden">Processing...</span>
+                            <h5 id="processingStatus" class="mb-3">Processing document...</h5>
+                            
+                            <!-- Overall Progress -->
+                            <div class="mb-3">
+                                <div class="progress" style="height: 20px;">
+                                    <div id="overallProgress" class="progress-bar progress-bar-striped progress-bar-animated" 
+                                         role="progressbar" style="width: 0%">
+                                        <span class="progress-text">0%</span>
+                                    </div>
+                                </div>
                             </div>
-                            <h5 id="processingStatus" class="mb-2">Processing document...</h5>
-                            <div class="progress mb-3" style="height: 10px;">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+
+                            <!-- Rule Processing Status -->
+                            <div id="ruleProgress" class="text-start mb-3">
+                                <!-- Rule status items will be inserted here -->
                             </div>
+
                             <div id="processingTime" class="small text-muted">Time elapsed: 0 seconds</div>
                         </div>
                     </div>
@@ -204,6 +214,49 @@ document.addEventListener('DOMContentLoaded', function() {
         }
     });
     
+    // Function to update progress UI
+    function updateProgress(data) {
+        // Update overall progress bar
+        const progressBar = document.getElementById('overallProgress');
+        const progress = Math.round(data.progress || 0);
+        progressBar.style.width = `${progress}%`;
+        progressBar.querySelector('.progress-text').textContent = `${progress}%`;
+
+        // Update individual rule progress
+        const ruleProgress = document.getElementById('ruleProgress');
+        ruleProgress.innerHTML = ''; // Clear existing items
+        
+        if (data.tasks) {
+            data.tasks.forEach((task, index) => {
+                const statusClass = {
+                    'pending': 'text-muted',
+                    'processing': 'text-primary',
+                    'completed': 'text-success',
+                    'failed': 'text-danger'
+                }[task.status];
+
+                const statusIcon = {
+                    'pending': 'clock',
+                    'processing': 'arrow-clockwise',
+                    'completed': 'check-circle-fill',
+                    'failed': 'x-circle-fill'
+                }[task.status];
+
+                const item = document.createElement('div');
+                item.className = 'mb-2';
+                item.innerHTML = `
+                    <div class="d-flex align-items-center gap-2">
+                        <i class="bi bi-${statusIcon} ${statusClass}"></i>
+                        <span class="${statusClass}">${task.rule_name}</span>
+                        ${task.processing_time ? `<small class="text-muted">(${task.processing_time})</small>` : ''}
+                    </div>
+                    ${task.error_message ? `<small class="text-danger">${task.error_message}</small>` : ''}
+                `;
+                ruleProgress.appendChild(item);
+            });
+        }
+    }
+
     async function pollDocumentStatus(documentId) {
         const pollInterval = 1000; // Poll every second
         let retryCount = 0;
@@ -240,6 +293,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         document.getElementById('processingStats').textContent = 
                             `Processing completed in ${timeTaken} seconds`;
                         
+                        // Update final progress
+                        updateProgress(data);
+                        
                         // Automatically redirect after 3 seconds
                         setTimeout(() => {
                             window.location.href = `/document/${documentId}/`;
@@ -254,6 +310,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         submitBtn.disabled = false;
                     }
                 } else if (retryCount < maxRetries) {
+                    // Update progress UI
+                    updateProgress(data);
+                    
                     // Update processing message
                     const minutes = Math.floor(retryCount / 60);
                     const seconds = retryCount % 60;

@@ -33,9 +33,7 @@ class DocumentProcessingService:
                              to report processing progress
         """
         try:
-            # Initialize COM for this thread with multi-threaded apartment
-            pythoncom.CoInitialize()
-            
+            # COM should already be initialized by the background task
             document.status = 'PROCESSING'
             document.save()
             
@@ -100,17 +98,26 @@ class DocumentProcessingService:
                 # Process document using rules
                 total_steps = len(rules.steps)
                 for idx, step in enumerate(rules.steps, 1):
-                    if progress_callback:
-                        progress = 30 + int((idx / total_steps) * 40)  # Progress from 30% to 70%
-                        progress_callback(progress, f"Applying rule: {step.name}")
+                    current_progress = 30 + int((idx / total_steps) * 40)  # Progress from 30% to 70%
+                    progress_message = f"Applying rule: {step.name}"
                     
-                    ops.apply_steps(
+                    if progress_callback:
+                        progress_callback(current_progress, progress_message)
+                    
+                    # Apply the step and track progress
+                    result = ops.apply_steps(
                         self.engine,
                         doc,
                         [step],  # Apply one step at a time
                         rules.safety,
                         logger
                     )
+                    
+                    # Report detailed progress through callback if available
+                    if isinstance(result, dict) and 'count_updated' in result:
+                        details = f"Updated {result['count_updated']} items"
+                        if progress_callback:
+                            progress_callback(current_progress, f"{progress_message} - {details}")
                 
                 # Export to PDF
                 if progress_callback:
@@ -163,10 +170,7 @@ class DocumentProcessingService:
                 except:
                     pass
                     
-            try:
-                pythoncom.CoUninitialize()
-            except:
-                pass
+            # COM cleanup is handled by the background task
     def _initialize_word_engine(self):
         """Initialize Word COM engine"""
         # Initialize Word

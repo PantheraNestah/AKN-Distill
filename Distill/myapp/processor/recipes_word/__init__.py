@@ -16,7 +16,7 @@ def discover_word_recipes():
     Automatically imports any module that defines a callable ending in `_py`.
     Returns a dict of {recipe_name: callable}.
     """
-    import formatter.recipes_word as this_pkg
+    from myapp.processor import recipes_word as this_pkg
 
     recipes = {}
     package_path = os.path.dirname(this_pkg.__file__)
@@ -27,7 +27,7 @@ def discover_word_recipes():
             continue
 
         try:
-            module = importlib.import_module(f"formatter.recipes_word.{module_name}")
+            module = importlib.import_module(f"myapp.processor.recipes_word.{module_name}")
             # Find the first callable ending in "_py"
             func = next(
                 getattr(module, attr)
@@ -43,7 +43,7 @@ def discover_word_recipes():
 
 def get_word_recipe(name: str):
     """Dynamically import and return a Word recipe function by name."""
-    module_path = f"formatter.recipes_word.{name}"
+    module_path = f"myapp.processor.recipes_word.{name}"
     try:
         module = importlib.import_module(module_path)
         func = next(

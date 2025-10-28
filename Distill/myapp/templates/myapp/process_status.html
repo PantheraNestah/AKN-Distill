@@ -2,6 +2,20 @@
 
 {% block title %}Processing Document - AKN Document Converter{% endblock %}
 
+{% block extra_css %}
+<style>
+    .task-progress {
+        transition: width 0.5s ease-in-out;
+    }
+    .task-item {
+        transition: all 0.3s ease-in-out;
+    }
+    .task-details {
+        font-size: 0.9em;
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div class="row">
     <div class="col-md-8 offset-md-2">
@@ -39,18 +53,142 @@
                         <a href="{% url 'task' %}" class="btn btn-primary">Try Again</a>
                     </div>
                 {% else %}
-                    <div class="alert alert-info">
-                        <h5 class="alert-heading">Processing in Progress</h5>
-                        <p>Your document is being processed. This page will automatically refresh to show updates.</p>
-                        <div class="progress">
-                            <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
+                    <!-- Overall Progress Section -->
+                    <div class="mb-4">
+                        <h5>Overall Progress</h5>
+                        <div class="progress" style="height: 25px;">
+                            <div id="overall-progress" 
+                                 class="progress-bar progress-bar-striped progress-bar-animated task-progress" 
+                                 role="progressbar" 
+                                 style="width: 0%;"
+                                 aria-valuenow="0" 
+                                 aria-valuemin="0" 
+                                 aria-valuemax="100">0%</div>
+                        </div>
+                        <p id="overall-message" class="text-muted mt-2"></p>
+                    </div>
+
+                    <!-- Current Task Section -->
+                    <div class="card mb-4">
+                        <div class="card-header">
+                            <h6 class="mb-0">Current Task</h6>
+                        </div>
+                        <div class="card-body">
+                            <h6 id="current-task-name" class="card-title"></h6>
+                            <div class="progress mb-2">
+                                <div id="task-progress" 
+                                     class="progress-bar progress-bar-striped progress-bar-animated task-progress" 
+                                     role="progressbar" 
+                                     style="width: 0%;">0%</div>
+                            </div>
+                            <p id="task-message" class="card-text text-muted"></p>
                         </div>
                     </div>
+
+                    <!-- Task Queue Section -->
+                    <div class="card">
+                        <div class="card-header">
+                            <h6 class="mb-0">Task Queue</h6>
+                        </div>
+                        <div class="card-body p-0">
+                            <div id="task-list" class="list-group list-group-flush">
+                                <!-- Tasks will be populated here -->
+                            </div>
+                        </div>
+                    </div>
+
                     <script>
-                        // Refresh the page every 5 seconds to check status
-                        setTimeout(function() {
-                            location.reload();
-                        }, 5000);
+                        document.addEventListener('DOMContentLoaded', function() {
+                            const documentId = '{{ document.id }}';
+                            const socket = new WebSocket(`ws://${window.location.host}/ws/process/${documentId}/`);
+                            
+                            const statusClasses = {
+                                'pending': 'bg-secondary',
+                                'processing': 'bg-primary',
+                                'completed': 'bg-success',
+                                'failed': 'bg-danger'
+                            };
+
+                            socket.onmessage = function(e) {
+                                const data = JSON.parse(e.data);
+                                
+                                if (data.type === 'processing_update') {
+                                    // Update overall progress
+                                    updateProgress('overall-progress', data.progress);
+                                    document.getElementById('overall-message').textContent = data.message;
+                                    
+                                    if (data.task_details) {
+                                        const { current_task, task_progress, completed_tasks, total_tasks } = data.task_details;
+                                        
+                                        // Update current task
+                                        document.getElementById('current-task-name').textContent = current_task;
+                                        updateProgress('task-progress', task_progress);
+                                        
+                                        // Update task list
+                                        updateTaskList(data.task_details);
+                                    }
+                                } else if (data.type === 'processing_complete') {
+                                    location.reload(); // Refresh to show final state
+                                }
+                            };
+
+                            function updateProgress(elementId, progress) {
+                                const progressBar = document.getElementById(elementId);
+                                const percentage = Math.round(progress);
+                                progressBar.style.width = `${percentage}%`;
+                                progressBar.textContent = `${percentage}%`;
+                                progressBar.setAttribute('aria-valuenow', percentage);
+                            }
+
+                            function updateTaskList(details) {
+                                const { completed_tasks, total_tasks, current_task } = details;
+                                const taskList = document.getElementById('task-list');
+                                taskList.innerHTML = '';
+                                
+                                for (let i = 0; i < total_tasks; i++) {
+                                    const status = i < completed_tasks ? 'completed' 
+                                                : i === completed_tasks ? 'processing'
+                                                : 'pending';
+                                    
+                                    const item = document.createElement('div');
+                                    item.className = `list-group-item d-flex justify-content-between align-items-center task-item`;
+                                    
+                                    const taskName = i === completed_tasks ? current_task : `Task ${i + 1}`;
+                                    const statusBadge = statusClasses[status] || 'bg-secondary';
+                                    
+                                    item.innerHTML = `
+                                        <div>
+                                            <strong>${taskName}</strong>
+                                            <div class="task-details text-muted">
+                                                ${status === 'processing' ? 'In Progress...' : 
+                                                  status === 'completed' ? 'Completed' : 'Waiting'}
+                                            </div>
+                                        </div>
+                                        <span class="badge ${statusBadge}">${status}</span>
+                                    `;
+                                    
+                                    taskList.appendChild(item);
+                                }
+                            }
+
+                            socket.onerror = function(error) {
+                                console.error('WebSocket Error:', error);
+                                showError('Connection error occurred. Please refresh the page.');
+                            };
+                            
+                            socket.onclose = function(e) {
+                                if (!e.wasClean) {
+                                    showError('Connection lost. Please refresh the page.');
+                                }
+                            };
+
+                            function showError(message) {
+                                const alertDiv = document.createElement('div');
+                                alertDiv.className = 'alert alert-danger mt-3';
+                                alertDiv.textContent = message;
+                                document.querySelector('.card-body').appendChild(alertDiv);
+                            }
+                        });
                     </script>
                 {% endif %}
 

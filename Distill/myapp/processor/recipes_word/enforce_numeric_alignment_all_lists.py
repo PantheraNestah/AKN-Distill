@@ -3,14 +3,18 @@ Word automation recipe to enforce numeric alignment in lists.
 Ensures consistent spacing and alignment of numbers in multilevel lists.
 """
 
-from .engines import C
+import win32com.client
+from win32com.client import constants as C
+import pythoncom
 
-def enforce_numeric_alignment_all_lists_py(app, doc, page_start=1, page_end=999, **_):
+# Ensure constants are properly initialized
+_ = win32com.client.gencache.EnsureDispatch("Word.Application")
+
+def enforce_numeric_alignment_all_lists_py(doc, page_start=1, page_end=999, **_):
     """
     Process a Word document to enforce numeric alignment in lists.
     
     Args:
-        app: Word application instance
         doc: Word document instance
         page_start: First page to process (default: 1)
         page_end: Last page to process (default: 999)
@@ -19,6 +23,9 @@ def enforce_numeric_alignment_all_lists_py(app, doc, page_start=1, page_end=999,
         dict: Results with ok/error status and count of changes
     """
     try:
+        # Get Word application instance
+        app = doc.Application
+        
         # Store initial selection
         initial_start = app.Selection.Start
         initial_end = app.Selection.End

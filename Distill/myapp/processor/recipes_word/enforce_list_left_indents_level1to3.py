@@ -1,6 +1,11 @@
 from __future__ import annotations
 from typing import Any
+import win32com.client
 from win32com.client import constants as C
+import pythoncom
+
+# Ensure constants are properly initialized
+_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
     """
@@ -10,6 +15,8 @@ def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
     - Level 3: 0.9 inches
     Also removes spaces after numbers and aligns text with numbers.
     """
+    # Initialize COM in this thread
+    pythoncom.CoInitialize()
     app = doc.Application
     app.ScreenUpdating = False
     changed = 0
@@ -81,3 +88,5 @@ def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
 
     finally:
         app.ScreenUpdating = True
+        # Uninitialize COM
+        pythoncom.CoUninitialize()

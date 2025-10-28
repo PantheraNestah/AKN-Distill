@@ -1,6 +1,11 @@
 from __future__ import annotations
 from typing import Any
+import win32com.client
 from win32com.client import constants as C
+import pythoncom
+
+# Ensure constants are properly initialized
+_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
     """
@@ -16,9 +21,11 @@ def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
     try:
         for para in doc.Paragraphs:
             try:
+                # Get list format for the paragraph
                 lf = para.Range.ListFormat
-                if lf.ListType != C.wdListNoNumbering:
+                if lf.ListType != C.wdListNoNumbering:  # Skip if not a list
                     try:
+                        # Get the list level details
                         lvl_number = lf.ListLevelNumber
                         lvl = lf.ListTemplate.ListLevels(lvl_number)
 
@@ -43,15 +50,18 @@ def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
             except Exception as e:
                 errors.append(f"Error accessing paragraph: {str(e)}")
 
+        # Prepare result with essential information
         result = {
             "ok": True,
             "count_updated": changed,
         }
         
+        # Add warnings if any errors occurred
         if errors:
             result["warnings"] = errors
             
         return result
 
     finally:
+        # Always restore screen updating
         app.ScreenUpdating = True

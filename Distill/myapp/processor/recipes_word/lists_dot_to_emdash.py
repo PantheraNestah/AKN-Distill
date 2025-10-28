@@ -1,6 +1,11 @@
 from __future__ import annotations
 from typing import Any
+import win32com.client
 from win32com.client import constants as C
+import pythoncom
+
+# Ensure constants are properly initialized
+_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> dict:
     """
@@ -12,12 +17,20 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
         page_start: First page to process (default: 1)
         page_end: Last page to process (default: 4)
     """
-    app = doc.Application
-    app.ScreenUpdating = False
-    changed = 0
-    errors = []
+    # Initialize COM for this thread
+    pythoncom.CoInitialize()
+    app = None
 
     try:
+        # Initialize Word application and prepare
+        app = doc.Application
+        app.ScreenUpdating = False
+        changed = 0
+        errors = []
+        
+        # Ensure we only process up to page 4 or document end, whichever is less
+        total_pages = doc.ComputeStatistics(C.wdStatisticPages)
+        page_end = min(page_end, total_pages)
         # Validate page range
         if page_end < page_start:
             return {
@@ -113,4 +126,7 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
         }
 
     finally:
-        app.ScreenUpdating = True
+        if 'app' in locals():
+            app.ScreenUpdating = True
+        # Clean up COM
+        pythoncom.CoUninitialize()
