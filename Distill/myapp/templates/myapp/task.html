@@ -1,0 +1,44 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %}Upload Document - AKN Document Converter{% endblock %}
+
+{% block content %}
+<div class="row">
+    <div class="col-md-8 offset-md-2">
+        <div class="card">
+            <div class="card-header">
+                <h2 class="mb-0">Upload Document</h2>
+            </div>
+            <div class="card-body">
+                {% if error_message %}
+                <div class="alert alert-danger">
+                    {{ error_message }}
+                </div>
+                {% endif %}
+                
+                {% if success_message %}
+                <div class="alert alert-success">
+                    {{ success_message }}
+                </div>
+                {% endif %}
+
+                {% if uploaded_file_url %}
+                <div class="alert alert-info">
+                    Your file has been uploaded and will be processed soon.
+                </div>
+                {% endif %}
+
+                <form method="post" enctype="multipart/form-data">
+                    {% csrf_token %}
+                    <div class="mb-3">
+                        <label for="document" class="form-label">Choose Word Document</label>
+                        <input type="file" class="form-control" id="document" name="document" accept=".doc,.docx" required>
+                        <div class="form-text">Supported formats: .doc, .docx</div>
+                    </div>
+                    <button type="submit" class="btn btn-primary">Upload Document</button>
+                </form>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}

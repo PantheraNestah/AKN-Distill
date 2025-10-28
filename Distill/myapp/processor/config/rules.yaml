@@ -1,0 +1,45 @@
+# Document processing rules
+name: default
+description: Default processing rules for AKN documents
+
+safety:
+  allow_text_changes: true  # Allow modifying document text
+  allow_style_changes: true # Allow modifying styles and formatting
+
+steps:
+  - name: Apply AOS Formatting
+    select:
+      document: true  # Apply to whole document
+    actions:
+      - word_recipe:
+          name: fix_aos_all_parts
+          enabled: true
+          params:
+            block_width_cm: 12.0
+
+  - name: Fix Level 2 Numbering
+    select:
+      document: true
+    actions:
+      - word_recipe:
+          name: follow_number_with_none_level2
+          enabled: true
+          params:
+            page_start: 1
+            page_end: 999
+
+  - name: Fix Level 3 Numbering
+    select:
+      document: true
+    actions:
+      - word_recipe:
+          name: follow_number_with_none_level3
+          enabled: true
+
+  - name: Tighten Level 3 Spacing
+    select:
+      document: true
+    actions:
+      - word_recipe:
+          name: tighten_level3_spacing
+          enabled: true

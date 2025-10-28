@@ -1,0 +1,56 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<div class="container mt-4">
+    <h1>Documents</h1>
+    
+    <div class="row mb-4">
+        <div class="col">
+            <form method="post" enctype="multipart/form-data" action="{% url 'upload_document' %}">
+                {% csrf_token %}
+                <div class="card">
+                    <div class="card-body">
+                        <h5 class="card-title">Upload New Document</h5>
+                        <div class="mb-3">
+                            <input type="file" name="document" class="form-control" accept=".doc,.docx" required>
+                        </div>
+                        <button type="submit" class="btn btn-primary">Upload & Process</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    {% if documents %}
+        <div class="table-responsive">
+            <table class="table table-striped">
+                <thead>
+                    <tr>
+                        <th>File Name</th>
+                        <th>Upload Date</th>
+                        <th>Status</th>
+                        <th>Actions</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for doc in documents %}
+                    <tr>
+                        <td>{{ doc.original_file.name }}</td>
+                        <td>{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
+                        <td>{{ doc.get_status_display }}</td>
+                        <td>
+                            {% if doc.processed_file %}
+                            <a href="{{ doc.processed_file.url }}" class="btn btn-sm btn-success">Download Processed</a>
+                            {% endif %}
+                            <a href="{% url 'document_detail' doc.id %}" class="btn btn-sm btn-info">View Details</a>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <div class="alert alert-info">No documents uploaded yet.</div>
+    {% endif %}
+</div>
+{% endblock %}

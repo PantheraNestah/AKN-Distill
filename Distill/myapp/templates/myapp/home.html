@@ -1,0 +1,28 @@
+{% extends 'myapp/base.html' %}
+
+{% block title %}Home - AKN Document Converter{% endblock %}
+
+{% block content %}
+<div class="jumbotron">
+    <h1 class="display-4">Welcome to AKN Distill</h1>
+    <p class="lead">Convert your documents to properly formatted PDFs with our automated pipeline.</p>
+    <hr class="my-4">
+    <p>Upload your Word documents and let our system handle the conversion process.</p>
+    <a class="btn btn-primary btn-lg" href="{% url 'task' %}" role="button">Start Converting</a>
+</div>
+
+<div class="row mt-5">
+    <div class="col-md-4">
+        <h3>Easy Upload</h3>
+        <p>Simply upload your Word documents through our user-friendly interface.</p>
+    </div>
+    <div class="col-md-4">
+        <h3>Automated Conversion</h3>
+        <p>Our pipeline automatically processes and formats your documents.</p>
+    </div>
+    <div class="col-md-4">
+        <h3>Quality Output</h3>
+        <p>Get properly formatted PDF documents ready for your use.</p>
+    </div>
+</div>
+{% endblock %}
