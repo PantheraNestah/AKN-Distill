@@ -43,7 +43,8 @@ def process_rule(document_id, rule_name, state):
         # Define rules that need page parameters
         PAGE_PARAM_RULES = [
             'lists_dot_to_emdash',
-            'remove_spaces_around_em_dash'
+            'remove_spaces_around_em_dash',
+            'enforce_numeric_alignment_all_lists'
         ]
 
         # Create custom rule config for single rule
@@ -54,12 +55,12 @@ def process_rule(document_id, rule_name, state):
             }
         }
 
-        # Add page parameters only for rules that need them
+        # Add page parameters for rules that need them
+        # Changed from page_end=4 to page_end=999 to process entire document
         if rule_name in PAGE_PARAM_RULES:
-            # Default to first 4 pages for rules that have page restrictions
             rule_action['word_recipe']['params'] = {
                 'page_start': 1,
-                'page_end': 4
+                'page_end': 999  # Process entire document, not just first 4 pages
             }
 
         rule_config = {

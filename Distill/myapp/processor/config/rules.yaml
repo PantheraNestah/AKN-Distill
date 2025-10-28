@@ -41,10 +41,10 @@ steps:
       - word_recipe:
           name: lists_dot_to_emdash
           enabled: true
-          description: Converts list numbers followed by dots to em dashes (no space after)
+          description: Converts list numbers followed by dots to em dashes (PAGES 1-4 ONLY, matching VBA)
           params:
             page_start: 1
-            page_end: 999
+            page_end: 4
 
   - name: Remove Spaces Around Em Dashes - 5
     select:

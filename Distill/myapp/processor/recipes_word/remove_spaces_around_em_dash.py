@@ -2,12 +2,7 @@
 Word automation recipe to remove spaces around em dashes.
 """
 
-import win32com.client
 from win32com.client import constants as C
-import pythoncom
-
-# Ensure constants are properly initialized
-_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 
 def remove_spaces_around_em_dash_py(doc, page_start=1, page_end=999, **_):
@@ -22,10 +17,6 @@ def remove_spaces_around_em_dash_py(doc, page_start=1, page_end=999, **_):
     Returns:
         dict: Results with ok/error status and count of changes
     """
-
-    # Initialize COM in this thread
-    pythoncom.CoInitialize()
-
     try:
         # Get Word application instance
         app = doc.Application
@@ -93,5 +84,3 @@ def remove_spaces_around_em_dash_py(doc, page_start=1, page_end=999, **_):
 
     finally:
         app.ScreenUpdating = True
-        # Uninitialize COM
-        pythoncom.CoUninitialize()

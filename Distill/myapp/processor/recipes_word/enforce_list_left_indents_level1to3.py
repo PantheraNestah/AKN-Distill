@@ -1,11 +1,6 @@
 from __future__ import annotations
 from typing import Any
-import win32com.client
 from win32com.client import constants as C
-import pythoncom
-
-# Ensure constants are properly initialized
-_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
     """
@@ -15,8 +10,6 @@ def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
     - Level 3: 0.9 inches
     Also removes spaces after numbers and aligns text with numbers.
     """
-    # Initialize COM in this thread
-    pythoncom.CoInitialize()
     app = doc.Application
     app.ScreenUpdating = False
     changed = 0
@@ -33,44 +26,44 @@ def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
 
                     if 1 <= level_num <= 3:
                         try:
-                            lvl = lf.ListTemplate.ListLevels(level_num)
-
-                            # Store original values for verification
-                            old_number_pos = lvl.NumberPosition
-                            old_text_pos = lvl.TextPosition
-                            old_left_indent = para.Format.LeftIndent
+                            list_template = lf.ListTemplate
+                            lvl = list_template.ListLevels(level_num)
 
                             # Set NumberPosition and TextPosition depending on list level
                             target_indent = inches_to_points(level_num * 0.3)
-                            lvl.NumberPosition = target_indent
-                            lvl.TextPosition = target_indent
-
-                            # Remove tab/space after number
-                            lvl.TrailingCharacter = C.wdTrailingNone
-                            # Keep text and number aligned
-                            lvl.TabPosition = C.wdUndefined
-
-                            # Match paragraph indent to level depth
-                            para.Format.LeftIndent = target_indent
-                            para.Format.FirstLineIndent = 0
-
-                            # Reapply list formatting to ensure changes take effect
-                            para.Range.ListFormat.ApplyListTemplateWithLevel(
-                                ListTemplate=lf.ListTemplate,
-                                ContinuePreviousList=True,
-                                ApplyLevel=level_num
+                            
+                            # Check if update needed
+                            needs_update = (
+                                abs(lvl.NumberPosition - target_indent) > 0.1 or
+                                abs(lvl.TextPosition - target_indent) > 0.1 or
+                                lvl.TrailingCharacter != C.wdTrailingNone or
+                                abs(para.Format.LeftIndent - target_indent) > 0.1
                             )
+                            
+                            if needs_update:
+                                lvl.NumberPosition = target_indent
+                                lvl.TextPosition = target_indent
 
-                            # Verify changes were applied
-                            if (lvl.NumberPosition == target_indent and 
-                                lvl.TextPosition == target_indent and 
-                                para.Format.LeftIndent == target_indent):
+                                # Remove tab/space after number
+                                lvl.TrailingCharacter = C.wdTrailingNone
+                                # Keep text and number aligned
+                                lvl.TabPosition = C.wdUndefined
+
+                                # Match paragraph indent to level depth
+                                para.Format.LeftIndent = target_indent
+                                para.Format.FirstLineIndent = 0
+
+                                # Reapply list formatting to ensure changes take effect
+                                para.Range.ListFormat.ApplyListTemplateWithLevel(
+                                    ListTemplate=list_template,
+                                    ContinuePreviousList=True,
+                                    ApplyTo=C.wdListApplyToWholeList,
+                                    ApplyLevel=level_num
+                                )
                                 changed += 1
-                            else:
-                                errors.append(f"Failed to apply indent changes to paragraph at position {para.Range.Start}")
 
                         except Exception as e:
-                            errors.append(f"Error processing list level: {str(e)}")
+                            errors.append(f"Error processing list level at position {para.Range.Start}: {str(e)}")
 
             except Exception as e:
                 errors.append(f"Error processing paragraph: {str(e)}")
@@ -82,11 +75,11 @@ def enforce_list_left_indents_level1to3_py(doc: Any) -> dict:
         }
 
         if errors:
-            result["warnings"] = errors
+            result["warnings"] = errors[:10]
+            if len(errors) > 10:
+                result["warnings"].append(f"... and {len(errors) - 10} more errors")
 
         return result
 
     finally:
         app.ScreenUpdating = True
-        # Uninitialize COM
-        pythoncom.CoUninitialize()

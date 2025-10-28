@@ -1,42 +1,42 @@
 from __future__ import annotations
 from typing import Any
-import win32com.client
 from win32com.client import constants as C
-import pythoncom
-
-# Ensure constants are properly initialized
-_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> dict:
     """
     Converts numbered list dots to em dashes and removes any following spaces.
     Example: "1." becomes "1—" (without space after dash)
     
+    IMPORTANT: This rule mimics VBA behavior - ONLY processes pages 1-4!
+    Even if page_end > 4 is passed, it will be clamped to 4 maximum.
+    
     Args:
         doc: Word document object
         page_start: First page to process (default: 1)
-        page_end: Last page to process (default: 4)
+        page_end: Last page to process (default: 4, max: 4)
     """
-    # Initialize COM for this thread
-    pythoncom.CoInitialize()
-    app = None
-
     try:
-        # Initialize Word application and prepare
         app = doc.Application
         app.ScreenUpdating = False
         changed = 0
         errors = []
         
-        # Ensure we only process up to page 4 or document end, whichever is less
+        # ENFORCE: Only pages 1-4 (matching VBA behavior)
+        # Even if config passes page_end=999, we cap it at 4
         total_pages = doc.ComputeStatistics(C.wdStatisticPages)
-        page_end = min(page_end, total_pages)
+        original_page_end = page_end
+        page_end = min(page_end, 4, total_pages)  # ✅ HARD LIMIT: Max page 4
+        
         # Validate page range
         if page_end < page_start:
             return {
                 "ok": False,
                 "error": "End page must be >= start page"
             }
+        
+        # Log if we clamped the page range
+        if original_page_end > 4:
+            errors.append(f"INFO: Page range clamped from 1-{original_page_end} to 1-{page_end} (matching VBA behavior)")
 
         # Store initial selection
         initial_start = app.Selection.Start
@@ -126,7 +126,5 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
         }
 
     finally:
-        if 'app' in locals():
+        if app:
             app.ScreenUpdating = True
-        # Clean up COM
-        pythoncom.CoUninitialize()

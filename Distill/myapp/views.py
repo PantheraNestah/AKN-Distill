@@ -100,6 +100,7 @@ def document_status(request, document_id):
         
         if document.status == 'COMPLETED':
             data['processed_file_url'] = document.processed_file.url if document.processed_file else None
+            data['pdf_file_url'] = document.pdf_file.url if document.pdf_file else None
             
         return JsonResponse(data)
     except Exception as e:

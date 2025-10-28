@@ -78,11 +78,21 @@ class DocumentProcessingService:
             if progress_callback:
                 progress_callback(10, "Word initialized successfully")
             
+            # Determine which file to open:
+            # If this is not the first rule and processed_file exists, use it
+            # Otherwise use the original file
+            if document.processed_file and os.path.exists(document.processed_file.path):
+                file_to_process = document.processed_file.path
+                logger.info(f"Processing existing processed file: {file_to_process}")
+            else:
+                file_to_process = document.original_file.path
+                logger.info(f"Processing original file: {file_to_process}")
+            
             # Open document
             if progress_callback:
                 progress_callback(15, "Opening document...")
 
-            doc = self.word_app.Documents.Open(document.original_file.path)
+            doc = self.word_app.Documents.Open(file_to_process)
             
             try:
                 # Create output directories if they don't exist
@@ -119,19 +129,45 @@ class DocumentProcessingService:
                         if progress_callback:
                             progress_callback(current_progress, f"{progress_message} - {details}")
                 
+                # Save the processed Word document
+                if progress_callback:
+                    progress_callback(75, "Saving processed Word document...")
+
+                # Determine output filename
+                docx_name = f"{Path(document.original_file.name).stem}_processed.docx"
+                docx_path = pdf_dir / docx_name
+                
+                # Save changes to the current document first
+                doc.Save()  # Save in-place changes
+                
+                # Save as new processed file
+                doc.SaveAs2(str(docx_path), FileFormat=16)  # 16 = .docx format
+                
+                # Update document record to point to processed file
+                # This ensures the next rule will work on the updated document
+                document.processed_file = f"processed/{docx_name}"
+                document.save()
+                
+                if progress_callback:
+                    progress_callback(80, "Reopening document for PDF conversion...")
+                
+                # Close and reopen to ensure all changes are persisted
+                doc.Close(SaveChanges=False)
+                doc = self.word_app.Documents.Open(str(docx_path))
+                
                 # Export to PDF
                 if progress_callback:
-                    progress_callback(80, "Converting to PDF...")
+                    progress_callback(85, "Converting to PDF...")
 
-                pdf_name = f"{Path(document.original_file.name).stem}.pdf"
+                pdf_name = f"{Path(document.original_file.name).stem}_processed.pdf"
                 pdf_path = pdf_dir / pdf_name
                 doc.SaveAs2(str(pdf_path), FileFormat=17)  # 17 = PDF
                 
-                # Update document record
+                # Update document record with both files
                 if progress_callback:
-                    progress_callback(90, "Finalizing...")
+                    progress_callback(95, "Finalizing...")
 
-                document.processed_file = f"processed/{pdf_name}"
+                document.pdf_file = f"processed/{pdf_name}"  # PDF
                 document.status = 'COMPLETED'
                 document.save()
 
@@ -141,7 +177,7 @@ class DocumentProcessingService:
                 return True
                 
             finally:
-                doc.Close(SaveChanges=False)
+                doc.Close(SaveChanges=False)  # No need to save again, already saved above
                 
         except Exception as e:
             logger.error(f"Document processing failed: {str(e)}")

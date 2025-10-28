@@ -142,8 +142,11 @@
                             <h5 class="card-title" id="completionMessage">Document processed successfully!</h5>
                             <p class="card-text" id="processingStats"></p>
                             <div class="d-flex gap-2">
-                                <a id="downloadLink" href="#" class="btn btn-success">
-                                    <i class="bi bi-download me-1"></i>Download Document
+                                <a id="downloadWordLink" href="#" class="btn btn-success">
+                                    <i class="bi bi-file-earmark-word me-1"></i>Download Word (.docx)
+                                </a>
+                                <a id="downloadPdfLink" href="#" class="btn btn-danger">
+                                    <i class="bi bi-file-earmark-pdf me-1"></i>Download PDF
                                 </a>
                                 <a id="viewDetailsLink" href="#" class="btn btn-primary">
                                     <i class="bi bi-eye me-1"></i>View Details
@@ -181,7 +184,8 @@ document.addEventListener('DOMContentLoaded', function() {
     const processingOverlay = document.getElementById('processingOverlay');
     const resultSection = document.getElementById('resultSection');
     const processingStatus = document.getElementById('processingStatus');
-    const downloadLink = document.getElementById('downloadLink');
+    const downloadWordLink = document.getElementById('downloadWordLink');
+    const downloadPdfLink = document.getElementById('downloadPdfLink');
     const viewDetailsLink = document.getElementById('viewDetailsLink');
     
     form.addEventListener('submit', async function(e) {
@@ -283,8 +287,9 @@ document.addEventListener('DOMContentLoaded', function() {
                         resultSection.style.display = 'block';
                         errorSection.style.display = 'none';
                         
-                        // Set up links
-                        downloadLink.href = data.processed_file_url;
+                        // Set up download links for both Word and PDF
+                        downloadWordLink.href = data.processed_file_url;
+                        downloadPdfLink.href = data.pdf_file_url;
                         viewDetailsLink.href = `/document/${documentId}/`;
                         
                         // Show completion stats

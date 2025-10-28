@@ -3,12 +3,7 @@ Word automation recipe to enforce numeric alignment in lists.
 Ensures consistent spacing and alignment of numbers in multilevel lists.
 """
 
-import win32com.client
 from win32com.client import constants as C
-import pythoncom
-
-# Ensure constants are properly initialized
-_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def enforce_numeric_alignment_all_lists_py(doc, page_start=1, page_end=999, **_):
     """
@@ -52,18 +47,34 @@ def enforce_numeric_alignment_all_lists_py(doc, page_start=1, page_end=999, **_)
 
                     if 1 <= level_num <= 3:
                         try:
-                            lvl = lf.ListTemplate.ListLevels(level_num)
+                            list_template = lf.ListTemplate
+                            lvl = list_template.ListLevels(level_num)
 
-                            # --- Key alignment rule ---
-                            lvl.Alignment = C.wdListLevelAlignRight
-                            lvl.NumberPosition = numPos[level_num]
-                            lvl.TextPosition = numPos[level_num] + gap
-                            lvl.TrailingCharacter = (
-                                C.wdTrailingNone if gap == 0 else C.wdTrailingTab
+                            # Check if update needed
+                            needs_update = (
+                                lvl.Alignment != C.wdListLevelAlignRight or
+                                abs(lvl.NumberPosition - numPos[level_num]) > 0.1 or
+                                abs(lvl.TextPosition - (numPos[level_num] + gap)) > 0.1
                             )
-                            lvl.TabPosition = C.wdUndefined
+                            
+                            if needs_update:
+                                # --- Key alignment rule ---
+                                lvl.Alignment = C.wdListLevelAlignRight
+                                lvl.NumberPosition = numPos[level_num]
+                                lvl.TextPosition = numPos[level_num] + gap
+                                lvl.TrailingCharacter = (
+                                    C.wdTrailingNone if gap == 0 else C.wdTrailingTab
+                                )
+                                lvl.TabPosition = C.wdUndefined
 
-                            changed += 1
+                                # Reapply list template to ensure changes take effect
+                                para.Range.ListFormat.ApplyListTemplateWithLevel(
+                                    ListTemplate=list_template,
+                                    ContinuePreviousList=True,
+                                    ApplyTo=C.wdListApplyToWholeList,
+                                    ApplyLevel=level_num
+                                )
+                                changed += 1
                         except Exception as e:
                             errors.append(f"Error processing list level {level_num}: {str(e)}")
             except Exception as e:

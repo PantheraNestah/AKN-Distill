@@ -1,17 +1,14 @@
 from __future__ import annotations
 from typing import Any
-import win32com.client
 from win32com.client import constants as C
-import pythoncom
-
-# Ensure constants are properly initialized
-_ = win32com.client.gencache.EnsureDispatch("Word.Application")
 
 def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
     """
     Removes space after number for all list levels in the document.
     Applies consistent formatting by setting TrailingCharacter to None,
     aligning TextPosition with NumberPosition, and removing tab stops.
+    
+    CRITICAL: Must reapply list template for changes to take effect!
     """
     app = doc.Application
     app.ScreenUpdating = False
@@ -27,38 +24,49 @@ def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
                     try:
                         # Get the list level details
                         lvl_number = lf.ListLevelNumber
-                        lvl = lf.ListTemplate.ListLevels(lvl_number)
+                        list_template = lf.ListTemplate
+                        lvl = list_template.ListLevels(lvl_number)
 
-                        # Store original values for verification
-                        old_trailing = lvl.TrailingCharacter
-                        old_text_pos = lvl.TextPosition
+                        # Store original values to detect if changes needed
+                        needs_update = (
+                            lvl.TrailingCharacter != C.wdTrailingNone or
+                            lvl.TextPosition != lvl.NumberPosition or
+                            lvl.TabPosition != C.wdUndefined
+                        )
                         
-                        # Apply formatting changes
-                        lvl.TrailingCharacter = C.wdTrailingNone
-                        lvl.TextPosition = lvl.NumberPosition
-                        lvl.TabPosition = C.wdUndefined
+                        if needs_update:
+                            # Apply formatting changes
+                            lvl.TrailingCharacter = C.wdTrailingNone
+                            lvl.TextPosition = lvl.NumberPosition
+                            lvl.TabPosition = C.wdUndefined
 
-                        # Verify changes were applied
-                        if (lvl.TrailingCharacter == C.wdTrailingNone and
-                            lvl.TextPosition == lvl.NumberPosition):
+                            # CRITICAL: Reapply list template to make changes stick
+                            para.Range.ListFormat.ApplyListTemplateWithLevel(
+                                ListTemplate=list_template,
+                                ContinuePreviousList=True,
+                                ApplyTo=C.wdListApplyToWholeList,
+                                ApplyLevel=lvl_number
+                            )
                             changed += 1
-                        else:
-                            errors.append(f"Failed to apply changes to paragraph at position {para.Range.Start}")
 
                     except Exception as e:
-                        errors.append(f"Error processing list level: {str(e)}")
+                        errors.append(f"Error processing list level at position {para.Range.Start}: {str(e)}")
             except Exception as e:
-                errors.append(f"Error accessing paragraph: {str(e)}")
+                # Skip non-list paragraphs silently
+                pass
 
         # Prepare result with essential information
         result = {
             "ok": True,
             "count_updated": changed,
+            "description": f"Updated {changed} list paragraphs (removed space after number)"
         }
         
-        # Add warnings if any errors occurred
+        # Add warnings if any errors occurred (but only first 10 to avoid spam)
         if errors:
-            result["warnings"] = errors
+            result["warnings"] = errors[:10]
+            if len(errors) > 10:
+                result["warnings"].append(f"... and {len(errors) - 10} more errors")
             
         return result
 
