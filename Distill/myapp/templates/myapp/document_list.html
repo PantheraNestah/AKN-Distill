@@ -1,51 +1,121 @@
 {% extends 'base.html' %}
+{% block title %}Documents — AKN Distill{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1>Documents</h1>
-    
-    <div class="row mb-4">
-        <div class="col">
-            <div class="card">
-                <div class="card-body">
-                    <h5 class="card-title">Process New Document</h5>
-                    <p class="card-text">Upload and process a new document with custom formatting rules.</p>
-                    <a href="{% url 'process_document' %}" class="btn btn-primary">Process New Document</a>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    {% if documents %}
-        <div class="table-responsive">
-            <table class="table table-striped">
-                <thead>
-                    <tr>
-                        <th>File Name</th>
-                        <th>Upload Date</th>
-                        <th>Status</th>
-                        <th>Actions</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {% for doc in documents %}
-                    <tr>
-                        <td>{{ doc.original_file.name }}</td>
-                        <td>{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
-                        <td>{{ doc.get_status_display }}</td>
-                        <td>
-                            {% if doc.processed_file %}
-                            <a href="{{ doc.processed_file.url }}" class="btn btn-sm btn-success">Download Processed</a>
-                            {% endif %}
-                            <a href="{% url 'document_detail' doc.id %}" class="btn btn-sm btn-info">View Details</a>
-                        </td>
-                    </tr>
-                    {% endfor %}
-                </tbody>
-            </table>
-        </div>
-    {% else %}
-        <div class="alert alert-info">No documents uploaded yet.</div>
-    {% endif %}
+<div class="d-flex align-items-center justify-content-between mb-3">
+  <h1 class="h3 mb-0">Documents</h1>
+  <a href="{% url 'process_document' %}" class="btn btn-primary"><i class="bi bi-plus-circle me-1"></i> Process New</a>
 </div>
+
+<!-- Filters -->
+<div class="card border-0 shadow-sm mb-3">
+  <div class="card-body">
+    <div class="row g-2 align-items-center">
+      <div class="col-md-6">
+        <div class="input-group">
+          <span class="input-group-text bg-white"><i class="bi bi-search"></i></span>
+          <input id="filterText" type="text" class="form-control" placeholder="Search by file name or description…">
+        </div>
+      </div>
+      <div class="col-md-3">
+        <select id="statusFilter" class="form-select">
+          <option value="ALL">All statuses</option>
+          <option value="UPLOADED">Uploaded</option>
+          <option value="PROCESSING">Processing</option>
+          <option value="COMPLETED">Completed</option>
+          <option value="FAILED">Failed</option>
+        </select>
+      </div>
+      <div class="col-md-3 text-md-end">
+        <button id="clearFilters" class="btn btn-outline-secondary"><i class="bi bi-x-lg me-1"></i> Clear</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% if documents %}
+<div class="table-responsive">
+  <table class="table table-hover table-modern align-middle">
+    <thead>
+      <tr>
+        <th style="min-width:280px;">File Name</th>
+        <th>Description</th>
+        <th class="text-nowrap">Uploaded</th>
+        <th>Status</th>
+        <th class="text-end">Actions</th>
+      </tr>
+    </thead>
+    <tbody id="docsBody">
+      {% for doc in documents %}
+      <tr data-name="{{ doc.get_clean_filename|lower }}"
+          data-desc="{{ doc.description|default:''|lower }}"
+          data-status="{{ doc.status }}">
+        <td class="fw-semibold">{{ doc.get_clean_filename }}</td>
+        <td class="text-muted small">{{ doc.description|default:"—" }}</td>
+        <td class="text-nowrap">{{ doc.uploaded_at|date:"Y-m-d H:i" }}</td>
+        <td>
+          <span class="badge
+            {% if doc.status == 'COMPLETED' %}bg-success
+            {% elif doc.status == 'FAILED' %}bg-danger
+            {% elif doc.status == 'PROCESSING' %}bg-warning text-dark
+            {% else %}bg-secondary{% endif %}">
+            {{ doc.get_status_display }}
+          </span>
+        </td>
+        <td class="text-end">
+          <a href="{% url 'document_detail' doc.id %}" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-eye me-1"></i> Details
+          </a>
+          {% if doc.processed_file %}
+          <div class="btn-group">
+            <a class="btn btn-sm btn-success" href="{{ doc.processed_file.url }}">
+              <i class="bi bi-download me-1"></i> PDF
+            </a>
+            <button class="btn btn-sm btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown"></button>
+            <ul class="dropdown-menu dropdown-menu-end">
+              <li><a class="dropdown-item" href="{{ doc.processed_file.url }}">PDF</a></li>
+              <li><span class="dropdown-item disabled">DOCX (coming soon)</span></li>
+            </ul>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<p id="noRows" class="text-muted text-center d-none mt-3">No documents match your filters.</p>
+{% else %}
+  <div class="alert alert-info">No documents uploaded yet.</div>
+{% endif %}
+
+<script>
+(function(){
+  const q = document.getElementById('filterText');
+  const s = document.getElementById('statusFilter');
+  const clearBtn = document.getElementById('clearFilters');
+  const rows = Array.from(document.querySelectorAll('#docsBody tr'));
+  const empty = document.getElementById('noRows');
+
+  function apply(){
+    const txt = (q.value || '').trim().toLowerCase();
+    const stat = s.value;
+    let shown = 0;
+    rows.forEach(r=>{
+      const okTxt = !txt || r.dataset.name.includes(txt) || r.dataset.desc.includes(txt);
+      const okSt  = (stat==='ALL') || (r.dataset.status===stat);
+      const vis = okTxt && okSt;
+      r.style.display = vis ? '' : 'none';
+      if (vis) shown++;
+    });
+    empty.classList.toggle('d-none', shown>0);
+  }
+  q.addEventListener('input', apply);
+  s.addEventListener('change', apply);
+  clearBtn.addEventListener('click', ()=>{
+    q.value=''; s.value='ALL'; apply();
+  });
+  apply();
+})();
+</script>
 {% endblock %}

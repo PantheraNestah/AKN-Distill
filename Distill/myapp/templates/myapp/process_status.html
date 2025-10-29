@@ -1,202 +1,193 @@
-{% extends 'myapp/base.html' %}
-
-{% block title %}Processing Document - AKN Document Converter{% endblock %}
-
-{% block extra_css %}
-<style>
-    .task-progress {
-        transition: width 0.5s ease-in-out;
-    }
-    .task-item {
-        transition: all 0.3s ease-in-out;
-    }
-    .task-details {
-        font-size: 0.9em;
-    }
-</style>
-{% endblock %}
+{% extends 'base.html' %}
+{% block title %}Processing — AKN Distill{% endblock %}
 
 {% block content %}
-<div class="row">
-    <div class="col-md-8 offset-md-2">
-        <div class="card">
-            <div class="card-header">
-                <h2 class="mb-0">Document Processing Status</h2>
+<div class="container px-2 px-lg-4" id="doc-meta" data-doc-id="{{ document.id }}">
+  <div class="d-flex align-items-center justify-content-between mt-3 mb-3">
+    <h1 class="h3 mb-0">Document Processing</h1>
+    <a href="{% url 'document_list' %}" class="btn btn-outline-primary">
+      <i class="bi bi-folder2-open me-1"></i> View Documents
+    </a>
+  </div>
+
+  <div class="card rounded-4 border-0 shadow-sm">
+    <div class="card-body p-4">
+      <div class="d-flex flex-wrap align-items-center justify-content-between mb-3">
+        <div class="d-flex align-items-center gap-3">
+          <div class="rounded-circle d-inline-flex align-items-center justify-content-center"
+               style="width:44px;height:44px;background:#edf0ff;color:var(--primary);">
+            <i class="bi bi-file-earmark-text"></i>
+          </div>
+          <div>
+            <div class="fw-semibold">{{ document.get_clean_filename|default:document.original_file.name }}</div>
+            <div class="small text-muted">
+              Uploaded {{ document.uploaded_at|date:"Y-m-d H:i" }}
+              {% if document.processed_at %} · Processed {{ document.processed_at|date:"Y-m-d H:i" }}{% endif %}
             </div>
-            <div class="card-body">
-                <div class="mb-4">
-                    <h4>Status: <span class="badge {% if document.status == 'COMPLETED' %}bg-success{% elif document.status == 'FAILED' %}bg-danger{% else %}bg-info{% endif %}">
-                        {{ document.status }}
-                    </span></h4>
-                </div>
-
-                <div class="mb-3">
-                    <p><strong>Original File:</strong> {{ document.original_file.name }}</p>
-                    <p><strong>Uploaded:</strong> {{ document.uploaded_at|date:"F j, Y, g:i a" }}</p>
-                    {% if document.processed_at %}
-                        <p><strong>Processed:</strong> {{ document.processed_at|date:"F j, Y, g:i a" }}</p>
-                    {% endif %}
-                </div>
-
-                {% if document.status == 'COMPLETED' and document.processed_file %}
-                    <div class="alert alert-success">
-                        <h5 class="alert-heading">Processing Complete!</h5>
-                        <p>Your document has been successfully converted. You can now download the processed PDF.</p>
-                        <a href="{% url 'download_file' document.id %}" class="btn btn-success">
-                            <i class="bi bi-download"></i> Download PDF
-                        </a>
-                    </div>
-                {% elif document.status == 'FAILED' %}
-                    <div class="alert alert-danger">
-                        <h5 class="alert-heading">Processing Failed</h5>
-                        <p>{{ document.error_message|default:"An error occurred during processing." }}</p>
-                        <a href="{% url 'task' %}" class="btn btn-primary">Try Again</a>
-                    </div>
-                {% else %}
-                    <!-- Overall Progress Section -->
-                    <div class="mb-4">
-                        <h5>Overall Progress</h5>
-                        <div class="progress" style="height: 25px;">
-                            <div id="overall-progress" 
-                                 class="progress-bar progress-bar-striped progress-bar-animated task-progress" 
-                                 role="progressbar" 
-                                 style="width: 0%;"
-                                 aria-valuenow="0" 
-                                 aria-valuemin="0" 
-                                 aria-valuemax="100">0%</div>
-                        </div>
-                        <p id="overall-message" class="text-muted mt-2"></p>
-                    </div>
-
-                    <!-- Current Task Section -->
-                    <div class="card mb-4">
-                        <div class="card-header">
-                            <h6 class="mb-0">Current Task</h6>
-                        </div>
-                        <div class="card-body">
-                            <h6 id="current-task-name" class="card-title"></h6>
-                            <div class="progress mb-2">
-                                <div id="task-progress" 
-                                     class="progress-bar progress-bar-striped progress-bar-animated task-progress" 
-                                     role="progressbar" 
-                                     style="width: 0%;">0%</div>
-                            </div>
-                            <p id="task-message" class="card-text text-muted"></p>
-                        </div>
-                    </div>
-
-                    <!-- Task Queue Section -->
-                    <div class="card">
-                        <div class="card-header">
-                            <h6 class="mb-0">Task Queue</h6>
-                        </div>
-                        <div class="card-body p-0">
-                            <div id="task-list" class="list-group list-group-flush">
-                                <!-- Tasks will be populated here -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <script>
-                        document.addEventListener('DOMContentLoaded', function() {
-                            const documentId = '{{ document.id }}';
-                            const socket = new WebSocket(`ws://${window.location.host}/ws/process/${documentId}/`);
-                            
-                            const statusClasses = {
-                                'pending': 'bg-secondary',
-                                'processing': 'bg-primary',
-                                'completed': 'bg-success',
-                                'failed': 'bg-danger'
-                            };
-
-                            socket.onmessage = function(e) {
-                                const data = JSON.parse(e.data);
-                                
-                                if (data.type === 'processing_update') {
-                                    // Update overall progress
-                                    updateProgress('overall-progress', data.progress);
-                                    document.getElementById('overall-message').textContent = data.message;
-                                    
-                                    if (data.task_details) {
-                                        const { current_task, task_progress, completed_tasks, total_tasks } = data.task_details;
-                                        
-                                        // Update current task
-                                        document.getElementById('current-task-name').textContent = current_task;
-                                        updateProgress('task-progress', task_progress);
-                                        
-                                        // Update task list
-                                        updateTaskList(data.task_details);
-                                    }
-                                } else if (data.type === 'processing_complete') {
-                                    location.reload(); // Refresh to show final state
-                                }
-                            };
-
-                            function updateProgress(elementId, progress) {
-                                const progressBar = document.getElementById(elementId);
-                                const percentage = Math.round(progress);
-                                progressBar.style.width = `${percentage}%`;
-                                progressBar.textContent = `${percentage}%`;
-                                progressBar.setAttribute('aria-valuenow', percentage);
-                            }
-
-                            function updateTaskList(details) {
-                                const { completed_tasks, total_tasks, current_task } = details;
-                                const taskList = document.getElementById('task-list');
-                                taskList.innerHTML = '';
-                                
-                                for (let i = 0; i < total_tasks; i++) {
-                                    const status = i < completed_tasks ? 'completed' 
-                                                : i === completed_tasks ? 'processing'
-                                                : 'pending';
-                                    
-                                    const item = document.createElement('div');
-                                    item.className = `list-group-item d-flex justify-content-between align-items-center task-item`;
-                                    
-                                    const taskName = i === completed_tasks ? current_task : `Task ${i + 1}`;
-                                    const statusBadge = statusClasses[status] || 'bg-secondary';
-                                    
-                                    item.innerHTML = `
-                                        <div>
-                                            <strong>${taskName}</strong>
-                                            <div class="task-details text-muted">
-                                                ${status === 'processing' ? 'In Progress...' : 
-                                                  status === 'completed' ? 'Completed' : 'Waiting'}
-                                            </div>
-                                        </div>
-                                        <span class="badge ${statusBadge}">${status}</span>
-                                    `;
-                                    
-                                    taskList.appendChild(item);
-                                }
-                            }
-
-                            socket.onerror = function(error) {
-                                console.error('WebSocket Error:', error);
-                                showError('Connection error occurred. Please refresh the page.');
-                            };
-                            
-                            socket.onclose = function(e) {
-                                if (!e.wasClean) {
-                                    showError('Connection lost. Please refresh the page.');
-                                }
-                            };
-
-                            function showError(message) {
-                                const alertDiv = document.createElement('div');
-                                alertDiv.className = 'alert alert-danger mt-3';
-                                alertDiv.textContent = message;
-                                document.querySelector('.card-body').appendChild(alertDiv);
-                            }
-                        });
-                    </script>
-                {% endif %}
-
-                <div class="mt-3">
-                    <a href="{% url 'task' %}" class="btn btn-outline-primary">Upload Another Document</a>
-                </div>
-            </div>
+          </div>
         </div>
+
+        <div id="statusPill">
+          <span class="badge
+            {% if document.status == 'COMPLETED' %} bg-success
+            {% elif document.status == 'FAILED' %} bg-danger
+            {% elif document.status == 'PROCESSING' %} bg-warning text-dark
+            {% else %} bg-info {% endif %}">
+            <i class="bi
+              {% if document.status == 'COMPLETED' %} bi-check-circle
+              {% elif document.status == 'FAILED' %} bi-x-circle
+              {% elif document.status == 'PROCESSING' %} bi-arrow-repeat
+              {% else %} bi-info-circle {% endif %} me-1"></i>
+            <span id="statusText">{{ document.status }}</span>
+          </span>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-4">
+        <div class="col-md-4">
+          <div class="small text-muted">Original File</div>
+          <div class="fw-medium text-truncate">{{ document.original_file.name }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted">Uploaded</div>
+          <div class="fw-medium">{{ document.uploaded_at|date:"F j, Y, g:i a" }}</div>
+        </div>
+        <div class="col-md-4">
+          <div class="small text-muted">Processed</div>
+          <div class="fw-medium" id="processedAt">
+            {% if document.processed_at %}{{ document.processed_at|date:"F j, Y, g:i a" }}{% else %}—{% endif %}
+          </div>
+        </div>
+      </div>
+
+      {% if document.status == 'COMPLETED' and document.processed_file %}
+      <div id="successPanel" class="alert alert-success border-0">
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+          <div class="me-3">
+            <div class="fw-semibold mb-1"><i class="bi bi-check-circle-fill me-1"></i> Processing Complete</div>
+            <div class="small text-muted">Your document is ready to download.</div>
+          </div>
+          <div class="d-flex gap-2 mt-2 mt-md-0">
+            <a href="{% url 'download_file' document.id %}" class="btn btn-success">
+              <i class="bi bi-filetype-pdf me-1"></i> Download PDF
+            </a>
+            <a class="btn btn-outline-secondary disabled" aria-disabled="true">
+              <i class="bi bi-filetype-docx me-1"></i> DOCX
+            </a>
+          </div>
+        </div>
+      </div>
+      {% else %}
+      <div id="progressPanel" class="alert {% if document.status == 'FAILED' %}alert-danger{% else %}alert-info{% endif %} border-0">
+        {% if document.status == 'FAILED' %}
+          <div class="fw-semibold mb-1"><i class="bi bi-x-octagon me-1"></i> Processing Failed</div>
+          <div class="small mb-2">{{ document.error_message|default:"An error occurred during processing." }}</div>
+          <a href="{% url 'process_document' %}" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i> Try Again</a>
+        {% else %}
+          <div class="fw-semibold mb-2"><i class="bi bi-hourglass-split me-1"></i> Processing in Progress</div>
+          <div class="progress mb-2" style="height:10px;">
+            <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+          </div>
+          <div class="small text-muted" id="liveNote">This page will update automatically.</div>
+        {% endif %}
+      </div>
+
+      <div id="successPanel" class="alert alert-success border-0 d-none">
+        <div class="d-flex flex-wrap align-items-center justify-content-between">
+          <div class="me-3">
+            <div class="fw-semibold mb-1"><i class="bi bi-check-circle-fill me-1"></i> Processing Complete</div>
+            <div class="small text-muted">Your document is ready to download.</div>
+          </div>
+          <div class="d-flex gap-2 mt-2 mt-md-0">
+            <a id="dlPdf" href="#" class="btn btn-success">
+              <i class="bi bi-filetype-pdf me-1"></i> Download PDF
+            </a>
+            <a class="btn btn-outline-secondary disabled" aria-disabled="true">
+              <i class="bi bi-filetype-docx me-1"></i> DOCX
+            </a>
+          </div>
+        </div>
+      </div>
+      {% endif %}
+
+      <div class="d-flex flex-wrap gap-2 mt-3">
+        <a href="{% url 'process_document' %}" class="btn btn-outline-primary">
+          <i class="bi bi-cloud-upload me-1"></i> Upload Another
+        </a>
+        <a href="{% url 'document_detail' document.id %}" class="btn btn-outline-secondary">
+          <i class="bi bi-eye me-1"></i> View Details
+        </a>
+      </div>
     </div>
+  </div>
 </div>
+
+{% if document.status != 'COMPLETED' %}
+<script>
+(function () {
+  // Get the id safely from the DOM, not from templating inside JS
+  const meta = document.getElementById('doc-meta');
+  const docId = Number(meta?.dataset?.docId || 0);
+  if (!docId) return; // nothing to poll
+
+  const statusPill    = document.getElementById('statusPill');
+  const progressPanel = document.getElementById('progressPanel');
+  const successPanel  = document.getElementById('successPanel');
+  const processedAtEl = document.getElementById('processedAt');
+  const dlPdf         = document.getElementById('dlPdf');
+
+  const badgeTone = {
+    'COMPLETED': 'bg-success',
+    'FAILED'   : 'bg-danger',
+    'PROCESSING':'bg-warning text-dark',
+    'UPLOADED' : 'bg-info'
+  };
+
+  function setStatusUI(status, processedAt, processedFileUrl, errorMsg) {
+    const badge = statusPill ? statusPill.querySelector('.badge') : null;
+    if (badge) {
+      badge.className = 'badge ' + (badgeTone[status] || 'bg-info');
+      const label = badge.querySelector('#statusText');
+      if (label) label.textContent = status;
+    }
+
+    if (status === 'COMPLETED') {
+      if (progressPanel) progressPanel.classList.add('d-none');
+      if (successPanel)  successPanel.classList.remove('d-none');
+
+      if (processedAt && processedAtEl) {
+        try { processedAtEl.textContent = new Date(processedAt).toLocaleString(); } catch(e){}
+      }
+      if (dlPdf && processedFileUrl) dlPdf.href = processedFileUrl;
+    }
+
+    if (status === 'FAILED' && progressPanel) {
+      progressPanel.classList.remove('alert-info');
+      progressPanel.classList.add('alert-danger');
+      progressPanel.innerHTML =
+        '<div class="fw-semibold mb-1"><i class="bi bi-x-octagon me-1"></i> Processing Failed</div>' +
+        '<div class="small mb-2">' + (errorMsg || 'Processing failed.') + '</div>' +
+        '<a href="{% url "process_document" %}" class="btn btn-primary btn-sm"><i class="bi bi-arrow-repeat me-1"></i> Try Again</a>';
+    }
+  }
+
+  async function poll() {
+    try {
+      const res  = await fetch(`/document/${docId}/status/`);
+      const data = await res.json();
+
+      if (data && data.status) {
+        setStatusUI(data.status, data.processed_at, data.processed_file_url, data.error_message);
+        if (data.is_complete) return;
+      }
+      setTimeout(poll, 1000);
+    } catch (e) {
+      setTimeout(poll, 2000);
+    }
+  }
+
+  poll();
+})();
+</script>
+{% endif %}
 {% endblock %}

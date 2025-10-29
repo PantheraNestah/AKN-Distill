@@ -1,52 +1,101 @@
 {% extends 'base.html' %}
+{% block title %}Document {{ document.id }} — AKN Distill{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1>Document Details</h1>
-    
-    <div class="card">
-        <div class="card-body">
-            <h5 class="card-title">{{ document.original_file.name }}</h5>
-            
-            <dl class="row">
-                <dt class="col-sm-3">Upload Date</dt>
-                <dd class="col-sm-9">{{ document.uploaded_at|date:"Y-m-d H:i" }}</dd>
-                
-                <dt class="col-sm-3">Status</dt>
-                <dd class="col-sm-9">
-                    <span class="badge {% if document.status == 'processed' %}bg-success{% elif document.status == 'failed' %}bg-danger{% else %}bg-warning{% endif %}">
-                        {{ document.get_status_display }}
-                    </span>
-                </dd>
-                
-                {% if document.error_message %}
-                <dt class="col-sm-3">Error</dt>
-                <dd class="col-sm-9">
-                    <div class="alert alert-danger">
-                        {{ document.error_message }}
-                    </div>
-                </dd>
-                {% endif %}
-            </dl>
-
-            <div class="mt-3">
-                {% if document.processed_file %}
-                <a href="{{ document.processed_file.url }}" class="btn btn-success me-2">
-                    <i class="bi bi-file-earmark-word"></i> Download Word (.docx)
-                </a>
-                {% endif %}
-                
-                {% if document.pdf_file %}
-                <a href="{{ document.pdf_file.url }}" class="btn btn-danger me-2">
-                    <i class="bi bi-file-earmark-pdf"></i> Download PDF
-                </a>
-                {% endif %}
-
-                <a href="{% url 'document_list' %}" class="btn btn-secondary">
-                    <i class="bi bi-arrow-left"></i> Back to List
-                </a>
-            </div>
-        </div>
+<div class="container px-2 px-lg-4">
+  <!-- Header / breadcrumbs-lite -->
+  <div class="d-flex flex-wrap align-items-center justify-content-between mt-3 mb-3">
+    <div class="d-flex flex-column">
+      <div class="small text-muted">
+        <a href="{% url 'document_list' %}" class="text-muted text-decoration-none">
+          <i class="bi bi-folder2-open me-1"></i>Documents
+        </a>
+        <span class="mx-1">/</span>
+        <span>#{{ document.id }}</span>
+      </div>
+      <h1 class="h4 mb-0 mt-1">{{ document.get_clean_filename|default:document.original_file.name }}</h1>
     </div>
+
+    <!-- Status + Download -->
+    <div class="d-flex align-items-center gap-3 mt-3 mt-md-0">
+      <span class="badge
+          {% if document.status == 'COMPLETED' %}bg-success
+          {% elif document.status == 'FAILED' %}bg-danger
+          {% elif document.status == 'PROCESSING' %}bg-warning text-dark
+          {% else %}bg-info{% endif %}">
+        {{ document.get_status_display }}
+      </span>
+
+      {% if document.processed_file %}
+      <div class="btn-group">
+        <a class="btn btn-success" href="{{ document.processed_file.url }}">
+          <i class="bi bi-download me-1"></i> PDF
+        </a>
+        <button class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"></button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li><a class="dropdown-item" href="{{ document.processed_file.url }}">PDF</a></li>
+          <li><a class="dropdown-item disabled" href="#" title="Coming soon">DOCX</a></li>
+        </ul>
+      </div>
+      {% else %}
+      <div class="btn-group">
+        <a class="btn btn-outline-secondary disabled" aria-disabled="true">
+          <i class="bi bi-hourglass-split me-1"></i> Waiting…
+        </a>
+        <button class="btn btn-outline-secondary dropdown-toggle dropdown-toggle-split disabled" aria-disabled="true"></button>
+      </div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Alerts for failure -->
+  {% if document.status == 'FAILED' %}
+    <div class="alert alert-danger border-0">
+      <div class="fw-semibold mb-1"><i class="bi bi-x-octagon me-1"></i> Processing Failed</div>
+      <div class="small mb-2">{{ document.error_message|default:"An error occurred during processing." }}</div>
+      <a href="{% url 'process_document' %}" class="btn btn-primary btn-sm">
+        <i class="bi bi-arrow-repeat me-1"></i> Try Again
+      </a>
+    </div>
+  {% endif %}
+
+  <!-- Info card -->
+  <div class="card rounded-4 border-0 shadow-sm">
+    <div class="card-body p-4">
+      <dl class="row mb-0">
+        <dt class="col-sm-3">Original file</dt>
+        <dd class="col-sm-9 text-truncate">{{ document.original_file.name }}</dd>
+
+        <dt class="col-sm-3">Status</dt>
+        <dd class="col-sm-9">{{ document.get_status_display }}</dd>
+
+        <dt class="col-sm-3">Description</dt>
+        <dd class="col-sm-9">{{ document.description|default:"—" }}</dd>
+
+        <dt class="col-sm-3">Uploaded</dt>
+        <dd class="col-sm-9">{{ document.uploaded_at|date:"Y-m-d H:i" }}</dd>
+
+        {% if document.processed_at %}
+        <dt class="col-sm-3">Processed</dt>
+        <dd class="col-sm-9">{{ document.processed_at|date:"Y-m-d H:i" }}</dd>
+        {% endif %}
+      </dl>
+    </div>
+  </div>
+
+  <!-- Footer actions -->
+  <div class="d-flex flex-wrap gap-2 mt-3">
+    <a href="{% url 'process_document' %}" class="btn btn-outline-primary">
+      <i class="bi bi-magic me-1"></i> Process Another
+    </a>
+    <a href="{% url 'document_list' %}" class="btn btn-outline-secondary">
+      <i class="bi bi-folder2-open me-1"></i> Back to Documents
+    </a>
+    <!-- {% if document.processed_file %}
+    <a class="btn btn-success" href="{{ document.processed_file.url }}">
+      <i class="bi bi-download me-1"></i> Download PDF
+    </a>
+    {% endif %} -->
+  </div>
 </div>
 {% endblock %}

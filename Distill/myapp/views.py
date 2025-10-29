@@ -6,9 +6,11 @@ from .models import Document, RuleTaskState
 from .services.document_processor import DocumentProcessingService
 from .tasks import process_rule
 import logging
+from datetime import timedelta
 import os
 import yaml
 from pathlib import Path
+import threading
 
 logger = logging.getLogger(__name__)
 
@@ -18,14 +20,39 @@ def document_list(request):
         'documents': documents
     })
 
+def home(request):
+    """Home page view with statistics and recent documents"""
+    
+    # Get total documents
+    total_documents = Document.objects.count()
+    
+    # Calculate success rate
+    completed_docs = Document.objects.filter(status='COMPLETED').count()
+    success_rate = round((completed_docs / total_documents * 100) if total_documents > 0 else 0)
+    
+    # Get documents processed today
+    today = timezone.now().date()
+    processed_today = Document.objects.filter(
+        uploaded_at__date=today
+    ).count()
+    
+    # Get recent documents (last 5)
+    recent_documents = Document.objects.order_by('-uploaded_at')[:5]
+    
+    context = {
+        'total_documents': total_documents,
+        'success_rate': success_rate,
+        'processed_today': processed_today,
+        'recent_documents': recent_documents,
+    }
+    
+    return render(request, 'myapp/home.html', context)
+
 def document_detail(request, pk):
     document = get_object_or_404(Document, pk=pk)
     return render(request, 'myapp/document_detail.html', {
         'document': document
     })
-
-from django.http import JsonResponse
-import threading
 
 def process_document_view(request):
     if request.method == 'POST':
@@ -47,10 +74,14 @@ def process_document_view(request):
                 'error': 'Please select at least one processing rule'
             }, status=400)
         
+        # Get description from form (NEW)
+        description = request.POST.get('description', '').strip()
+        
         try:
-            # Create document record
+            # Create document record with description
             document = Document.objects.create(
                 original_file=uploaded_file,
+                description=description,  # NEW
                 status='UPLOADED'
             )
 
