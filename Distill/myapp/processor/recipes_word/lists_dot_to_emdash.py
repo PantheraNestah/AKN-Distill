@@ -108,19 +108,17 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
                         pre_text = para.Range.Text[:120].replace('\r', ' ').replace('\n', ' ')
                         errors.append(f"DEBUG: Pg{pg} Para start (level={level_num}, type={list_type}): '{pre_text}...'")
 
-                        # Work on the first ~60 characters only
-                        head = para.Range.Duplicate
-                        head.End = head.Start + 60
-
                         # --- 3a) Replace "digits." with "digits—" ---
-                        find = head.Find
+                        # CRITICAL: Work directly on para.Range, NOT a duplicate!
+                        # Duplicates don't persist changes to the document
+                        find = para.Range.Find
                         find.ClearFormatting()
                         find.Replacement.ClearFormatting()
                         find.Text = "([0-9]{1,})."
                         find.Replacement.Text = r"\1—"
                         find.MatchWildcards = True
                         find.Forward = True
-                        find.Wrap = C.wdFindStop
+                        find.Wrap = C.wdFindStop  # Don't wrap, stay in paragraph
                         find.Format = False
 
                         replaced = False
@@ -148,11 +146,8 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
                                 match = re.match(r'^(\d+)\.\s*', para_start)
                                 if match:
                                     # Found plain-text number pattern at paragraph start
-                                    # Replace in the actual paragraph range (not just head)
-                                    fallback_range = para.Range.Duplicate
-                                    fallback_range.End = fallback_range.Start + 20
-                                    
-                                    find = fallback_range.Find
+                                    # CRITICAL: Work directly on para.Range, NOT a duplicate!
+                                    find = para.Range.Find
                                     find.ClearFormatting()
                                     find.Replacement.ClearFormatting()
                                     # Match digits followed by dot at very start (with optional leading space)
@@ -173,10 +168,7 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
                                         errors.append(f"DEBUG: fallback find failed on pg{pg}: {str(e)}")
 
                         # --- 3b) Remove space/tab immediately after em dash ---
-                        head = para.Range.Duplicate
-                        head.End = head.Start + 60
-
-                        find = head.Find
+                        find = para.Range.Find
                         find.ClearFormatting()
                         find.Replacement.ClearFormatting()
                         find.Text = "—([ ^t]{1,})"   # any space(s) or tab(s) after em dash
