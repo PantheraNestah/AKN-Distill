@@ -1,28 +1,162 @@
-{% extends 'myapp/base.html' %}
+{% extends 'base.html' %}
 
-{% block title %}Home - AKN Document Converter{% endblock %}
+{% block title %}Home - AKN Distill{% endblock %}
 
 {% block content %}
-<div class="jumbotron">
-    <h1 class="display-4">Welcome to AKN Distill</h1>
-    <p class="lead">Convert your documents to properly formatted PDFs with our automated pipeline.</p>
-    <hr class="my-4">
-    <p>Upload your Word documents and let our system handle the conversion process.</p>
-    <a class="btn btn-primary btn-lg" href="{% url 'task' %}" role="button">Start Converting</a>
+
+<!-- Hero Section -->
+<div class="hero-section fade-in-up">
+    <div class="text-center">
+        <h1 class="hero-title">Welcome to AKN Distill</h1>
+        <p class="hero-subtitle">Professional document processing and formatting for legal documents</p>
+        <div class="d-flex gap-3 justify-content-center flex-wrap">
+            <a href="{% url 'process_document' %}" class="btn btn-light btn-lg px-4">
+                <i class="bi bi-cloud-upload me-2"></i> Upload Document
+            </a>
+            <a href="{% url 'document_list' %}" class="btn btn-outline-light btn-lg px-4">
+                <i class="bi bi-folder2-open me-2"></i> View Documents
+            </a>
+        </div>
+    </div>
 </div>
 
-<div class="row mt-5">
-    <div class="col-md-4">
-        <h3>Easy Upload</h3>
-        <p>Simply upload your Word documents through our user-friendly interface.</p>
+<!-- Stats Section -->
+<div class="row g-3 mb-5 fade-in-up" style="animation-delay: 0.1s;">
+    <div class="col-12 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="bi bi-file-earmark-text text-primary"></i>
+            </div>
+            <div class="stat-number">{{ total_documents|default:0 }}</div>
+            <div class="stat-label">Total Documents</div>
+        </div>
     </div>
-    <div class="col-md-4">
-        <h3>Automated Conversion</h3>
-        <p>Our pipeline automatically processes and formats your documents.</p>
+    <div class="col-12 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="bi bi-check-circle text-success"></i>
+            </div>
+            <div class="stat-number">{{ success_rate|default:0 }}%</div>
+            <div class="stat-label">Success Rate</div>
+        </div>
     </div>
-    <div class="col-md-4">
-        <h3>Quality Output</h3>
-        <p>Get properly formatted PDF documents ready for your use.</p>
+    <div class="col-12 col-md-4">
+        <div class="stat-card">
+            <div class="stat-icon">
+                <i class="bi bi-lightning-charge text-warning"></i>
+            </div>
+            <div class="stat-number">{{ processed_today|default:0 }}</div>
+            <div class="stat-label">Processed Today</div>
+        </div>
     </div>
 </div>
+
+<!-- Features Section -->
+<div class="fade-in-up" style="animation-delay: 0.2s;">
+    <h2 class="section-title">Key Features</h2>
+    <div class="row g-4 mb-5">
+        <div class="col-12 col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-lightning-charge-fill"></i>
+                </div>
+                <h4>Fast Processing</h4>
+                <p class="text-muted mb-0">Process documents quickly with our optimized formatting engine.</p>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-shield-check"></i>
+                </div>
+                <h4>Accurate Formatting</h4>
+                <p class="text-muted mb-0">Ensure your documents meet legal formatting standards.</p>
+            </div>
+        </div>
+        <div class="col-12 col-md-4">
+            <div class="feature-card">
+                <div class="feature-icon">
+                    <i class="bi bi-file-earmark-pdf"></i>
+                </div>
+                <h4>Multiple Formats</h4>
+                <p class="text-muted mb-0">Export to DOCX or PDF format based on your needs.</p>
+            </div>
+        </div>
+    </div>
+</div>
+
+<!-- Recent Documents Section -->
+<div class="fade-in-up" style="animation-delay: 0.3s;">
+    <h2 class="section-title">Recent Activity</h2>
+    
+    <div class="row g-4">
+        {% if recent_documents %}
+        <div class="col-12 col-lg-8">
+            {% for doc in recent_documents %}
+            <div class="recent-doc-card">
+                <div class="doc-icon">
+                    <i class="bi bi-file-earmark-text"></i>
+                </div>
+                <div class="flex-grow-1">
+                    <h6 class="mb-1">{{ doc.original_file.name|default:"Document" }}</h6>
+                    <small class="text-muted">
+                        <i class="bi bi-clock me-1"></i> {{ doc.uploaded_at|date:"M d, Y H:i" }}
+                    </small>
+                </div>
+                <span class="badge 
+                    {% if doc.status == 'COMPLETED' %}bg-success
+                    {% elif doc.status == 'FAILED' %}bg-danger
+                    {% elif doc.status == 'PROCESSING' %}bg-warning
+                    {% else %}bg-info{% endif %}">
+                    {{ doc.get_status_display }}
+                </span>
+            </div>
+            {% endfor %}
+            <a href="{% url 'document_list' %}" class="btn btn-outline-primary w-100 mt-3">
+                View All Documents <i class="bi bi-arrow-right ms-2"></i>
+            </a>
+        </div>
+        {% else %}
+        <div class="col-12 col-lg-8">
+            <div class="card-custom p-4 text-center">
+                <i class="bi bi-inbox" style="font-size: 3rem; color: var(--primary-color); opacity: 0.5;"></i>
+                <h5 class="mt-3 mb-2">No documents yet</h5>
+                <p class="text-muted mb-3">Upload your first document to get started</p>
+                <a href="{% url 'process_document' %}" class="btn btn-primary">
+                    <i class="bi bi-cloud-upload me-2"></i> Upload Document
+                </a>
+            </div>
+        </div>
+        {% endif %}
+        
+        <!-- Getting Started Guide -->
+        <div class="col-12 col-lg-4">
+            <div class="card-custom p-4">
+                <h5 class="mb-3"><i class="bi bi-compass me-2"></i>Getting Started</h5>
+                <div class="guide-step">
+                    <span class="step-number">1</span>
+                    <div>
+                        <strong>Upload</strong>
+                        <p class="mb-0 mt-2 small text-muted">Upload your DOCX document</p>
+                    </div>
+                </div>
+                <div class="guide-step">
+                    <span class="step-number">2</span>
+                    <div>
+                        <strong>Select Rules</strong>
+                        <p class="mb-0 mt-2 small text-muted">Choose formatting rules to apply</p>
+                    </div>
+                </div>
+                <div class="guide-step">
+                    <span class="step-number">3</span>
+                    <div>
+                        <strong>Download</strong>
+                        <p class="mb-0 mt-2 small text-muted">Get your formatted document</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
 {% endblock %}

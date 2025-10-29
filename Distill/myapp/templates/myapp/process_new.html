@@ -1,271 +1,215 @@
 {% extends 'base.html' %}
-
-{% block title %}AKN Distill - Document Refinement{% endblock %}
+{% block title %}Process Document — AKN Distill{% endblock %}
 
 {% block content %}
-<div class="container mt-4">
-    <h1>Document Refinement</h1>
+<h1 class="mb-3">Process Document</h1>
 
-    <ul class="nav nav-tabs mb-4">
-        <li class="nav-item">
-            <a class="nav-link active" href="#options">Options</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="#preview">Preview</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="#changes">Changes / Log</a>
-        </li>
-        <li class="nav-item">
-            <a class="nav-link" href="#download">Download</a>
-        </li>
-    </ul>
+<ul class="nav nav-tabs mb-3" role="tablist">
+  <li class="nav-item" role="presentation">
+    <button class="nav-link active" id="tab-upload" data-bs-toggle="tab" data-bs-target="#pane-upload" type="button" role="tab">Upload</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-preview" data-bs-toggle="tab" data-bs-target="#pane-preview" type="button" role="tab">Preview</button>
+  </li>
+  <li class="nav-item" role="presentation">
+    <button class="nav-link" id="tab-download" data-bs-toggle="tab" data-bs-target="#pane-download" type="button" role="tab">Download</button>
+  </li>
+</ul>
 
-    <div class="card">
-        <div class="card-body">
-            <form method="post" enctype="multipart/form-data">
-                {% csrf_token %}
-                
-                <div class="mb-4">
-                    <label for="document" class="form-label">Upload Document (.docx)</label>
-                    <input type="file" class="form-control" id="document" name="document" accept=".docx" required>
-                    <div class="form-text">Tip: Use the latest AKN-formatted output to maximize rule accuracy.</div>
-                </div>
+<div class="card border-0 shadow-sm">
+  <div class="card-body">
+    <form method="post" enctype="multipart/form-data" id="processForm">
+      {% csrf_token %}
 
-                <div class="mb-4">
-                    <h5>Processing Rules</h5>
-                    <div class="alert alert-info">
-                        <i class="bi bi-info-circle"></i> Select at least one rule to process your document.
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="fix_aos_all_parts" id="rule1" checked>
-                        <label class="form-check-label" for="rule1">
-                            Add em-dash in section listings
-                            <small class="text-muted d-block">Recommended: Basic formatting for all documents</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule2">
-                        <label class="form-check-label" for="rule2">
-                            Remove space after list numbers
-                            <small class="text-muted d-block">Improves level 2 list formatting</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level3" id="rule3">
-                        <label class="form-check-label" for="rule3">
-                            Fix paragraph indentation (0.5 cm hanging)
-                            <small class="text-muted d-block">Standardizes paragraph indentation</small>
-                        </label>
-                    </div>
-                    <div class="form-check mb-2">
-                        <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="tighten_level3_spacing" id="rule4">
-                        <label class="form-check-label" for="rule4">
-                            Tighten level 3 spacing
-                            <small class="text-muted d-block">Optimizes spacing between level 3 elements</small>
-                        </label>
-                    </div>
-                </div>
+      <div class="tab-content">
+        <!-- Upload -->
+        <div class="tab-pane fade show active" id="pane-upload" role="tabpanel" aria-labelledby="tab-upload">
+          <div class="mb-4">
+            <label for="document" class="form-label">Upload Document (.docx)</label>
+            <input type="file" class="form-control" id="document" name="document" accept=".docx" required>
+            <div class="form-text">Tip: Latest AKN-formatted output gives best results.</div>
+          </div>
 
-                <button type="submit" id="submitBtn" class="btn btn-primary" disabled>Apply Formatting</button>
+          <div class="mb-4">
+            <label for="description" class="form-label">Description (Optional)</label>
+            <textarea class="form-control" id="description" name="description" rows="3" placeholder="Short note to identify this document..."></textarea>
+          </div>
 
-                <script>
-                    // Enable submit button only when at least one rule is selected
-                    document.querySelectorAll('.rule-checkbox').forEach(checkbox => {
-                        checkbox.addEventListener('change', function() {
-                            const anyChecked = Array.from(document.querySelectorAll('.rule-checkbox'))
-                                .some(cb => cb.checked);
-                            document.getElementById('submitBtn').disabled = !anyChecked;
-                        });
-                    });
-                    
-                    // Initialize button state
-                    document.getElementById('submitBtn').disabled = !Array.from(document.querySelectorAll('.rule-checkbox'))
-                        .some(cb => cb.checked);
-                </script>
-            </form>
-
-            <!-- Status Container -->
-            <div id="statusContainer" class="mt-4">
-                <!-- Processing Overlay -->
-                <div id="processingOverlay" style="display: none;">
-                    <div class="card">
-                        <div class="card-body text-center">
-                            <div class="spinner-border text-primary mb-3" role="status">
-                                <span class="visually-hidden">Processing...</span>
-                            </div>
-                            <h5 id="processingStatus" class="mb-2">Processing document...</h5>
-                            <div class="progress mb-3" style="height: 10px;">
-                                <div class="progress-bar progress-bar-striped progress-bar-animated" role="progressbar" style="width: 100%"></div>
-                            </div>
-                            <div id="processingTime" class="small text-muted">Time elapsed: 0 seconds</div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Result Section -->
-                <div id="resultSection" style="display: none;">
-                    <div class="card border-success">
-                        <div class="card-header bg-success text-white">
-                            <i class="bi bi-check-circle-fill me-2"></i>Processing Complete
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title" id="completionMessage">Document processed successfully!</h5>
-                            <p class="card-text" id="processingStats"></p>
-                            <div class="d-flex gap-2">
-                                <a id="downloadLink" href="#" class="btn btn-success">
-                                    <i class="bi bi-download me-1"></i>Download Document
-                                </a>
-                                <a id="viewDetailsLink" href="#" class="btn btn-primary">
-                                    <i class="bi bi-eye me-1"></i>View Details
-                                </a>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Error Section -->
-                <div id="errorSection" style="display: none;">
-                    <div class="card border-danger">
-                        <div class="card-header bg-danger text-white">
-                            <i class="bi bi-exclamation-circle-fill me-2"></i>Processing Failed
-                        </div>
-                        <div class="card-body">
-                            <h5 class="card-title">An error occurred</h5>
-                            <p class="card-text" id="errorMessage"></p>
-                            <button class="btn btn-primary" onclick="window.location.reload()">
-                                <i class="bi bi-arrow-clockwise me-1"></i>Try Again
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </div>
+          <button type="button" class="btn btn-outline-primary" id="toPreview">
+            Next: Preview <i class="bi bi-arrow-right-short ms-1"></i>
+          </button>
         </div>
-    </div>
+
+        <!-- Preview -->
+        <div class="tab-pane fade" id="pane-preview" role="tabpanel" aria-labelledby="tab-preview">
+          <div class="row g-4">
+            <div class="col-lg-7">
+              <div class="border rounded p-3">
+                <h6 class="mb-2">Quick Preview</h6>
+                <p class="text-muted small mb-2" id="fileInfo">No file selected yet.</p>
+                <div class="alert alert-secondary py-2 mb-0">
+                  Browser preview for .docx is limited. You can still select rules and apply formatting.
+                </div>
+              </div>
+            </div>
+
+            <div class="col-lg-5">
+              <h6 class="mb-3">Processing Rules</h6>
+
+              <div class="form-check mb-2">
+                <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="fix_aos_all_parts" id="rule1" checked>
+                <label class="form-check-label" for="rule1">Add em-dash in section listings</label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level2" id="rule2">
+                <label class="form-check-label" for="rule2">Remove space after list numbers</label>
+              </div>
+              <div class="form-check mb-2">
+                <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="follow_number_with_none_level3" id="rule3">
+                <label class="form-check-label" for="rule3">Fix paragraph indentation (0.5 cm hanging)</label>
+              </div>
+              <div class="form-check mb-3">
+                <input class="form-check-input rule-checkbox" type="checkbox" name="rules" value="tighten_level3_spacing" id="rule4">
+                <label class="form-check-label" for="rule4">Tighten level 3 spacing</label>
+              </div>
+
+              <button type="submit" id="applyBtn" class="btn btn-primary" disabled>
+                <i class="bi bi-magic me-1"></i> Apply Formatting
+              </button>
+            </div>
+          </div>
+
+          <!-- Inline status -->
+          <div id="statusWrap" class="mt-4" style="display:none;">
+            <div class="progress mb-2">
+              <div class="progress-bar progress-bar-striped progress-bar-animated" style="width:100%"></div>
+            </div>
+            <div class="small text-muted" id="statusText">Processing…</div>
+          </div>
+        </div>
+
+        <!-- Download -->
+        <div class="tab-pane fade" id="pane-download" role="tabpanel" aria-labelledby="tab-download">
+          <p class="text-muted">Once processing completes you can choose a format:</p>
+          <div class="d-flex gap-2">
+            <a href="#" id="dlPdf" class="btn btn-success disabled" aria-disabled="true">
+              <i class="bi bi-filetype-pdf me-1"></i> PDF
+            </a>
+            <a href="#" id="dlDocx" class="btn btn-outline-secondary disabled" aria-disabled="true" title="Coming soon">
+              <i class="bi bi-filetype-docx me-1"></i> DOCX
+            </a>
+          </div>
+        </div>
+      </div>
+    </form>
+  </div>
 </div>
 
-{% block extra_js %}
 <script>
-document.addEventListener('DOMContentLoaded', function() {
-    const form = document.querySelector('form');
-    const submitBtn = document.getElementById('submitBtn');
-    const processingOverlay = document.getElementById('processingOverlay');
-    const resultSection = document.getElementById('resultSection');
-    const processingStatus = document.getElementById('processingStatus');
-    const downloadLink = document.getElementById('downloadLink');
-    const viewDetailsLink = document.getElementById('viewDetailsLink');
-    
-    form.addEventListener('submit', async function(e) {
-        e.preventDefault();
-        
-        // Show processing overlay
-        submitBtn.disabled = true;
-        processingOverlay.style.display = 'block';
-        resultSection.style.display = 'none';
-        
-        // Submit form data
-        const formData = new FormData(form);
-        try {
-            const response = await fetch('', {
-                method: 'POST',
-                body: formData
-            });
-            
-            const data = await response.json();
-            if (data.document_id) {
-                // Start polling for status
-                pollDocumentStatus(data.document_id);
-            } else {
-                throw new Error(data.error || 'Unknown error occurred');
-            }
-        } catch (error) {
-            console.error('Error:', error);
-            processingStatus.textContent = 'Error: ' + error.message;
-            submitBtn.disabled = false;
-        }
-    });
-    
-    async function pollDocumentStatus(documentId) {
-        const pollInterval = 1000; // Poll every second
-        let retryCount = 0;
-        const maxRetries = 300; // 5 minutes maximum
-        const startTime = new Date();
-        
-        // Start updating elapsed time
-        const timeCounter = setInterval(() => {
-            const elapsed = Math.round((new Date() - startTime) / 1000);
-            document.getElementById('processingTime').textContent = `Time elapsed: ${elapsed} seconds`;
-        }, 1000);
+(function(){
+  const form = document.getElementById('processForm');
+  const toPreviewBtn = document.getElementById('toPreview');
+  const previewTabBtn = document.getElementById('tab-preview');
+  const downloadTabBtn = document.getElementById('tab-download');
 
-        const poll = async () => {
-            try {
-                const response = await fetch(`/document/${documentId}/status/`);
-                const data = await response.json();
-                
-                if (data.is_complete) {
-                    clearInterval(timeCounter);
-                    
-                    if (data.status === 'COMPLETED') {
-                        // Update UI elements
-                        processingOverlay.style.display = 'none';
-                        resultSection.style.display = 'block';
-                        errorSection.style.display = 'none';
-                        
-                        // Set up links
-                        downloadLink.href = data.processed_file_url;
-                        viewDetailsLink.href = `/document/${documentId}/`;
-                        
-                        // Show completion stats
-                        const completedAt = new Date(data.processed_at);
-                        const timeTaken = Math.round((completedAt - startTime) / 1000);
-                        document.getElementById('processingStats').textContent = 
-                            `Processing completed in ${timeTaken} seconds`;
-                        
-                        // Automatically redirect after 3 seconds
-                        setTimeout(() => {
-                            window.location.href = `/document/${documentId}/`;
-                        }, 3000);
-                    } else {
-                        // Show error section
-                        processingOverlay.style.display = 'none';
-                        resultSection.style.display = 'none';
-                        errorSection.style.display = 'block';
-                        document.getElementById('errorMessage').textContent = 
-                            data.error_message || 'Processing failed';
-                        submitBtn.disabled = false;
-                    }
-                } else if (retryCount < maxRetries) {
-                    // Update processing message
-                    const minutes = Math.floor(retryCount / 60);
-                    const seconds = retryCount % 60;
-                    processingStatus.textContent = minutes > 0 ? 
-                        `Processing document... (${minutes}m ${seconds}s)` :
-                        `Processing document... (${seconds}s)`;
-                    retryCount++;
-                    setTimeout(poll, pollInterval);
-                } else {
-                    // Show timeout error
-                    clearInterval(timeCounter);
-                    processingOverlay.style.display = 'none';
-                    errorSection.style.display = 'block';
-                    document.getElementById('errorMessage').textContent = 
-                        'Processing timed out. Please try again.';
-                    submitBtn.disabled = false;
-                }
-            } catch (error) {
-                clearInterval(timeCounter);
-                console.error('Polling error:', error);
-                processingOverlay.style.display = 'none';
-                errorSection.style.display = 'block';
-                document.getElementById('errorMessage').textContent = 
-                    'Error checking status: ' + error.message;
-                submitBtn.disabled = false;
-            }
-        };
+  const applyBtn = document.getElementById('applyBtn');
+  const fileInput = document.getElementById('document');
+  const fileInfo = document.getElementById('fileInfo');
 
-        await poll();
+  const statusWrap = document.getElementById('statusWrap');
+  const statusText = document.getElementById('statusText');
+  const dlPdf = document.getElementById('dlPdf');
+  const dlDocx = document.getElementById('dlDocx');
+
+  // Move to Preview tab only if a file is chosen
+  toPreviewBtn?.addEventListener('click', () => {
+    if(!fileInput.files.length){
+      alert('Please choose a .docx file first.');
+      return;
     }
-});
+    const f = fileInput.files[0];
+    fileInfo.textContent = `${f.name} • ${(f.size/1024/1024).toFixed(2)} MB`;
+    new bootstrap.Tab(previewTabBtn).show();
+  });
+
+  // Enable Apply button when any rule is checked
+  const syncApply = () => {
+    const any = Array.from(document.querySelectorAll('.rule-checkbox')).some(cb => cb.checked);
+    applyBtn.disabled = !any;
+  };
+  document.querySelectorAll('.rule-checkbox').forEach(cb => cb.addEventListener('change', syncApply));
+  syncApply();
+
+  // Intercept submit to avoid navigating to JSON
+  form.addEventListener('submit', async function(e){
+    e.preventDefault();
+
+    if(!fileInput.files.length){
+      alert('Please choose a .docx file first.');
+      return;
+    }
+
+    applyBtn.disabled = true;
+    statusWrap.style.display = 'block';
+    statusText.textContent = 'Starting…';
+
+    try {
+      const fd = new FormData(form);
+      const res = await fetch('', { method: 'POST', body: fd });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to start processing');
+      if (!data.document_id) throw new Error('No document id returned');
+
+      pollStatus(data.document_id);
+    } catch (err) {
+      statusText.textContent = 'Error: ' + err.message;
+      applyBtn.disabled = false;
+    }
+  });
+
+  // Poll the status endpoint until complete
+  async function pollStatus(id){
+    let tries = 0, maxTries = 60 * 5; // 5 minutes
+    const tick = async () => {
+      try {
+        const res = await fetch(`/document/${id}/status/`);
+        const data = await res.json();
+
+        if (data.is_complete){
+          if (data.status === 'COMPLETED'){
+            statusText.textContent = 'Completed.';
+            // Enable PDF download
+            if (data.processed_file_url){
+              dlPdf.classList.remove('disabled');
+              dlPdf.removeAttribute('aria-disabled');
+              dlPdf.href = data.processed_file_url;
+            }
+            // Switch to Download tab
+            new bootstrap.Tab(downloadTabBtn).show();
+
+            // Optional: take user to detail page after 2.5s
+            setTimeout(()=>{ window.location.href = `/document/${id}/`; }, 2500);
+          } else {
+            statusText.textContent = data.error_message || 'Processing failed.';
+            applyBtn.disabled = false;
+          }
+          return;
+        }
+
+        tries++;
+        statusText.textContent = 'Processing… (' + tries + 's)';
+        if (tries < maxTries) setTimeout(tick, 1000);
+        else {
+          statusText.textContent = 'Timed out. Please open the document details page to check progress.';
+          applyBtn.disabled = false;
+        }
+      } catch (e) {
+        statusText.textContent = 'Polling error: ' + e.message;
+        applyBtn.disabled = false;
+      }
+    };
+    tick();
+  }
+})();
 </script>
-{% endblock %}
 {% endblock %}
