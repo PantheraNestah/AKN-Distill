@@ -37,6 +37,7 @@ class Document(models.Model):
 
     original_file = models.FileField(upload_to='documents/')
     processed_file = models.FileField(upload_to='processed/', null=True, blank=True)
+    pdf_file = models.FileField(upload_to='processed/', null=True, blank=True)
     description = models.TextField(blank=True, null=True)  # NEW FIELD
     status = models.CharField(max_length=20, choices=PROCESSING_STATUS, default='UPLOADED')
     uploaded_at = models.DateTimeField(auto_now_add=True)
@@ -62,6 +63,11 @@ class Document(models.Model):
     def processed_file_path(self):
         """Returns the full path of the processed file"""
         return os.path.join(settings.MEDIA_ROOT, str(self.processed_file)) if self.processed_file else None
+    
+    @property
+    def pdf_file_path(self):
+        """Returns the full path of the PDF file"""
+        return os.path.join(settings.MEDIA_ROOT, str(self.pdf_file)) if self.pdf_file else None
     
     def get_clean_filename(self):
         """Returns cleaned filename without path, random prefix, and extension"""

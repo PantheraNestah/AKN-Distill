@@ -40,12 +40,21 @@ def process_rule(document_id, rule_name, state):
             status='processing'
         )
 
-        # Define rules that need page parameters
-        PAGE_PARAM_RULES = [
-            'lists_dot_to_emdash',
-            'remove_spaces_around_em_dash',
-            'enforce_numeric_alignment_all_lists'
-        ]
+        # Define correct parameters for each rule (matching rules.yaml)
+        RULE_PARAMS = {
+            'lists_dot_to_emdash': {
+                'page_start': 1,
+                'page_end': 4  # ONLY pages 1-4, matching VBA behavior
+            },
+            'remove_spaces_around_em_dash': {
+                'page_start': 1,
+                'page_end': 999  # Entire document
+            },
+            'enforce_numeric_alignment_all_lists': {
+                'page_start': 1,
+                'page_end': 999  # Entire document
+            }
+        }
 
         # Create custom rule config for single rule
         rule_action = {
@@ -55,13 +64,9 @@ def process_rule(document_id, rule_name, state):
             }
         }
 
-        # Add page parameters for rules that need them
-        # Changed from page_end=4 to page_end=999 to process entire document
-        if rule_name in PAGE_PARAM_RULES:
-            rule_action['word_recipe']['params'] = {
-                'page_start': 1,
-                'page_end': 999  # Process entire document, not just first 4 pages
-            }
+        # Add parameters if rule needs them
+        if rule_name in RULE_PARAMS:
+            rule_action['word_recipe']['params'] = RULE_PARAMS[rule_name]
 
         rule_config = {
             'name': 'custom',
@@ -78,8 +83,10 @@ def process_rule(document_id, rule_name, state):
         }
 
         # Process the rule
+        # CRITICAL: Refetch document to get the latest processed_file path
+        document = Document.objects.get(id=document_id)
         processor = DocumentProcessingService()
-        result = processor.process_document(task_state.document, rule_config)
+        result = processor.process_document(document, rule_config)
 
         # Handle both dictionary and boolean results
         success = result.get('ok') if isinstance(result, dict) else result
@@ -87,6 +94,8 @@ def process_rule(document_id, rule_name, state):
         if success:
             task_state.status = 'completed'
             task_state.state += 1
+            task_state.processing_time = timezone.now() - start_time
+            task_state.save()  # Save immediately so progress calculation is accurate
             
             # Get completion message
             completion_message = (result.get('description') if isinstance(result, dict) 
@@ -111,7 +120,7 @@ def process_rule(document_id, rule_name, state):
                 logger.info(f"Scheduling next rule: {next_task.rule_name}")
                 process_rule(document_id, next_task.rule_name, next_task.state)
             else:
-                # All rules completed
+                # All rules completed - task state already saved above
                 document = Document.objects.get(id=document_id)
                 document.status = 'COMPLETED'
                 document.processed_at = timezone.now()
@@ -121,6 +130,8 @@ def process_rule(document_id, rule_name, state):
             task_state.status = 'failed'
             error_msg = result.get('error', 'Unknown error') if isinstance(result, dict) else 'Rule processing failed'
             task_state.error_message = error_msg
+            task_state.processing_time = timezone.now() - start_time
+            task_state.save()  # Save immediately
             
             # Update progress and notify failure
             TaskProgressService.task_complete(
@@ -136,8 +147,8 @@ def process_rule(document_id, rule_name, state):
         logger.exception(f"Error processing rule {rule_name}")
         task_state.status = 'failed'
         task_state.error_message = str(e)
+        task_state.processing_time = timezone.now() - start_time
+        task_state.save()  # Save immediately
 
     finally:
-        task_state.processing_time = timezone.now() - start_time
-        task_state.save()
         pythoncom.CoUninitialize()  # Clean up COM for this thread

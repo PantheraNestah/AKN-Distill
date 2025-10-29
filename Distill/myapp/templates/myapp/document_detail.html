@@ -28,13 +28,15 @@
 
       {% if document.processed_file %}
       <div class="btn-group">
-        <a class="btn btn-success" href="{{ document.processed_file.url }}">
+        <a class="btn btn-success" href="{% if document.pdf_file %}{{ document.pdf_file.url }}{% else %}#{% endif %}">
           <i class="bi bi-download me-1"></i> PDF
         </a>
         <button class="btn btn-success dropdown-toggle dropdown-toggle-split" data-bs-toggle="dropdown" aria-expanded="false"></button>
         <ul class="dropdown-menu dropdown-menu-end">
-          <li><a class="dropdown-item" href="{{ document.processed_file.url }}">PDF</a></li>
-          <li><a class="dropdown-item disabled" href="#" title="Coming soon">DOCX</a></li>
+          {% if document.pdf_file %}
+          <li><a class="dropdown-item" href="{{ document.pdf_file.url }}">PDF</a></li>
+          {% endif %}
+          <li><a class="dropdown-item" href="{{ document.processed_file.url }}">DOCX</a></li>
         </ul>
       </div>
       {% else %}

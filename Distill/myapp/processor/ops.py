@@ -26,10 +26,13 @@ def discover_word_recipes() -> dict[str, Any]:
 
     registry: dict[str, Any] = {}
     package_path = os.path.dirname(os.path.abspath(recipes_pkg.__file__))
+    
+    # Skip these files - they're not recipes
+    SKIP_FILES = {'engines', '_utils', '__init__', '__pycache__'}
 
     for _, mod_name, _ in pkgutil.iter_modules([package_path]):
         print("[DEBUG] Found module candidate:", mod_name)
-        if mod_name.startswith("_"):
+        if mod_name.startswith("_") or mod_name in SKIP_FILES:
             continue
         try:
             module = importlib.import_module(f".recipes_word.{mod_name}", package="myapp.processor")

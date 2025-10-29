@@ -155,20 +155,31 @@ class DocumentProcessingService:
                 doc.Close(SaveChanges=False)
                 doc = self.word_app.Documents.Open(str(docx_path))
                 
-                # Export to PDF
+                # Export to PDF using ExportAsFixedFormat (proper method for PDF export)
                 if progress_callback:
                     progress_callback(85, "Converting to PDF...")
 
                 pdf_name = f"{Path(document.original_file.name).stem}_processed.pdf"
                 pdf_path = pdf_dir / pdf_name
-                doc.SaveAs2(str(pdf_path), FileFormat=17)  # 17 = PDF
+                
+                # Use ExportAsFixedFormat instead of SaveAs2 for PDF
+                # wdExportFormatPDF = 17, wdExportOptimizeForPrint = 0
+                doc.ExportAsFixedFormat(
+                    OutputFileName=str(pdf_path),
+                    ExportFormat=17,  # wdExportFormatPDF
+                    OpenAfterExport=False,
+                    OptimizeFor=0,  # wdExportOptimizeForPrint
+                    CreateBookmarks=1,  # wdExportCreateHeadingBookmarks
+                    DocStructureTags=True
+                )
                 
                 # Update document record with both files
                 if progress_callback:
                     progress_callback(95, "Finalizing...")
 
                 document.pdf_file = f"processed/{pdf_name}"  # PDF
-                document.status = 'COMPLETED'
+                # DON'T set status to COMPLETED here - let the task processor handle it
+                # document.status = 'COMPLETED'
                 document.save()
 
                 if progress_callback:

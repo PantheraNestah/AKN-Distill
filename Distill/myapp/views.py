@@ -202,19 +202,8 @@ def generate_custom_rules(selected_rules, preset='custom'):
 
     # Map rule names to their configurations
     RULE_CONFIGS = {
-        'fix_aos_all_parts': {
-            'name': 'Apply AOS Formatting',
-            'select': {'document': True},
-            'actions': [{
-                'word_recipe': {
-                    'name': 'fix_aos_all_parts',
-                    'enabled': True,
-                    'params': {'block_width_cm': 12.0}
-                }
-            }]
-        },
-        'no_space_after_number_all_lists': {
-            'name': 'Remove Space After Numbers (All Levels)',
+        'no_space_after_number_all_lists_fix': {
+            'name': 'Remove Space After All List Numbers',
             'select': {'document': True},
             'actions': [{
                 'word_recipe': {
@@ -223,8 +212,8 @@ def generate_custom_rules(selected_rules, preset='custom'):
                 }
             }]
         },
-        'enforce_list_indents': {
-            'name': 'Enforce List Indents (Levels 1-3)',
+        'enforce_list_left_indents_level1to3': {
+            'name': 'Enforce List Level Indents (1-3)',
             'select': {'document': True},
             'actions': [{
                 'word_recipe': {
@@ -240,6 +229,61 @@ def generate_custom_rules(selected_rules, preset='custom'):
                 'word_recipe': {
                     'name': 'remove_all_tabs',
                     'enabled': True
+                }
+            }]
+        },
+        'lists_dot_to_emdash': {
+            'name': 'Convert List Numbers to Em Dashes',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'lists_dot_to_emdash',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 4}
+                }
+            }]
+        },
+        'remove_spaces_around_em_dash': {
+            'name': 'Remove Spaces Around Em Dashes',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'remove_spaces_around_em_dash',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 999}
+                }
+            }]
+        },
+        'enforce_numeric_alignment_all_lists': {
+            'name': 'Enforce Numeric List Alignment',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'enforce_numeric_alignment_all_lists',
+                    'enabled': True,
+                    'params': {'page_start': 1, 'page_end': 999}
+                }
+            }]
+        },
+        'add_space_before_emdash_paragraphs': {
+            'name': 'Add Space Before Em Dash Paragraphs',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'add_space_before_emdash_paragraphs',
+                    'enabled': True
+                }
+            }]
+        },
+        # Legacy rules (kept for backward compatibility)
+        'fix_aos_all_parts': {
+            'name': 'Apply AOS Formatting',
+            'select': {'document': True},
+            'actions': [{
+                'word_recipe': {
+                    'name': 'fix_aos_all_parts',
+                    'enabled': True,
+                    'params': {'block_width_cm': 12.0}
                 }
             }]
         },
@@ -271,39 +315,6 @@ def generate_custom_rules(selected_rules, preset='custom'):
                 'word_recipe': {
                     'name': 'tighten_level3_spacing',
                     'enabled': True
-                }
-            }]
-        },
-        'lists_dot_to_emdash': {
-            'name': 'Convert List Numbers to Em Dashes',
-            'select': {'document': True},
-            'actions': [{
-                'word_recipe': {
-                    'name': 'lists_dot_to_emdash',
-                    'enabled': True,
-                    'params': {'page_start': 1, 'page_end': 999}
-                }
-            }]
-        },
-        'remove_spaces_around_em_dash': {
-            'name': 'Remove Spaces Around Em Dashes',
-            'select': {'document': True},
-            'actions': [{
-                'word_recipe': {
-                    'name': 'remove_spaces_around_em_dash',
-                    'enabled': True,
-                    'params': {'page_start': 1, 'page_end': 999}
-                }
-            }]
-        },
-        'enforce_numeric_alignment_all_lists': {
-            'name': 'Enforce Numeric List Alignment',
-            'select': {'document': True},
-            'actions': [{
-                'word_recipe': {
-                    'name': 'enforce_numeric_alignment_all_lists',
-                    'enabled': True,
-                    'params': {'page_start': 1, 'page_end': 999}
                 }
             }]
         }
