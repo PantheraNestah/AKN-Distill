@@ -69,3 +69,12 @@ steps:
           params:
             page_start: 1
             page_end: 999
+
+  - name: Add Space Before Em Dash Paragraphs - 7
+    select:
+      document: true
+    actions:
+      - word_recipe:
+          name: add_space_before_emdash_paragraphs
+          enabled: true
+          description: Adds leading space to paragraphs where second character is an em dash (e.g., "1—Text" becomes " 1—Text")
