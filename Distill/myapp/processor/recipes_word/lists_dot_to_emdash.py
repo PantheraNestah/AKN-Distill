@@ -22,10 +22,9 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
         errors = []
         
         # ENFORCE: Only pages 1-4 (matching VBA behavior)
-        # Even if config passes page_end=999, we cap it at 4
         total_pages = doc.ComputeStatistics(C.wdStatisticPages)
         original_page_end = page_end
-        page_end = min(page_end, 4, total_pages)  # ✅ HARD LIMIT: Max page 4
+        page_end = min(page_end, 4, total_pages)
         
         # Validate page range
         if page_end < page_start:
@@ -53,64 +52,25 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
                     rNext = rPage.GoTo(What=C.wdGoToPage, Which=C.wdGoToNext)
                     rPage.End = rNext.Start - 1
                 except Exception:
-                    # If there is no next page, go to end of document
                     rPage.End = doc.Content.End
 
                 # --- Step 2: Convert numbering to literal text on this page only ---
-                # Try the VBA-style range conversion first; record page sample for debugging
                 try:
-                    page_text_sample = rPage.Text[:200].replace('\r', ' ').replace('\n', ' ')
-                    errors.append(f"DEBUG: Page {pg} sample before convert: '{page_text_sample}...'")
-                except Exception:
-                    page_text_sample = ''
-
-                try:
-                    # VBA calls ConvertNumbersToText on the page range — try that first
-                    try:
-                        rPage.ListFormat.ConvertNumbersToText()
-                        errors.append(f"INFO: Called ConvertNumbersToText on page {pg}")
-                    except Exception as e:
-                        errors.append(f"Warning: Page-level ConvertNumbersToText failed on page {pg}: {str(e)}")
-
-                    # After attempting page-level conversion, also attempt per-paragraph conversion
-                    conv_count = 0
-                    for para in rPage.Paragraphs:
-                        try:
-                            if para.Range.ListFormat.ListType != C.wdListNoNumbering:
-                                # Convert per-paragraph if possible
-                                try:
-                                    para.Range.ListFormat.ConvertNumbersToText()
-                                    conv_count += 1
-                                except Exception:
-                                    # ignore paragraphs that cannot be converted
-                                    pass
-                        except Exception:
-                            pass
-
-                    if conv_count:
-                        errors.append(f"INFO: Converted {conv_count} paragraph list items to text on page {pg}")
-                    else:
-                        errors.append(f"INFO: No paragraph-level automatic numbering found on page {pg}")
+                    rPage.ListFormat.ConvertNumbersToText()
+                    errors.append(f"INFO: Called ConvertNumbersToText on page {pg}")
                 except Exception as e:
-                    errors.append(f"Warning: Could not convert list numbers on page {pg}: {str(e)}")
+                    errors.append(f"Warning: ConvertNumbersToText failed on page {pg}: {str(e)}")
 
                 # --- Step 3: Process each paragraph on this page ---
                 for para in rPage.Paragraphs:
                     try:
-                        # Record paragraph-level debug info
-                        try:
-                            list_type = para.Range.ListFormat.ListType
-                            level_num = para.Range.ListFormat.ListLevelNumber
-                        except Exception:
-                            list_type = None
-                            level_num = None
+                        pre_text = para.Range.Text[:60].replace('\r', ' ').replace('\n', ' ')
+                        errors.append(f"DEBUG: Pg{pg} Para start: '{pre_text}'")
 
-                        pre_text = para.Range.Text[:120].replace('\r', ' ').replace('\n', ' ')
-                        errors.append(f"DEBUG: Pg{pg} Para start (level={level_num}, type={list_type}): '{pre_text}...'")
-
+                        # PYTHON COM FIX: Cannot use .Duplicate like VBA
+                        # Must work directly on para.Range for changes to persist
+                        
                         # --- 3a) Replace "digits." with "digits—" ---
-                        # CRITICAL: Work directly on para.Range, NOT a duplicate!
-                        # Duplicates don't persist changes to the document
                         find = para.Range.Find
                         find.ClearFormatting()
                         find.Replacement.ClearFormatting()
@@ -118,65 +78,28 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
                         find.Replacement.Text = r"\1—"
                         find.MatchWildcards = True
                         find.Forward = True
-                        find.Wrap = C.wdFindStop  # Don't wrap, stay in paragraph
+                        find.Wrap = C.wdFindStop  # Stay within paragraph
                         find.Format = False
 
-                        replaced = False
                         try:
                             if find.Execute(Replace=C.wdReplaceOne):
                                 changed += 1
-                                replaced = True
+                                post_text = para.Range.Text[:60].replace('\r', ' ').replace('\n', ' ')
+                                errors.append(f"SUCCESS: Pg{pg} replaced: '{post_text}'")
                         except Exception as e:
-                            errors.append(f"DEBUG: find failed on pg{pg} para at start: {str(e)}")
-
-                        # Log post-find snippet if replaced
-                        if replaced:
-                            post_text = para.Range.Text[:120].replace('\r', ' ').replace('\n', ' ')
-                            errors.append(f"DEBUG: Pg{pg} Para AFTER replace: '{post_text}...'")
-
-                        # --- FALLBACK: Catch plain-text numbered headings (e.g., "1. Section") ---
-                        # If no replacement happened yet and paragraph starts with digits followed by dot,
-                        # replace that dot with em-dash (pages 1-4 only; very conservative pattern)
-                        if not replaced:
-                            # Check if paragraph starts with optional whitespace + digits + dot
-                            para_start = para.Range.Text[:20].strip()
-                            if para_start and para_start[0].isdigit():
-                                # Look for pattern like "1." or "2." at start
-                                import re
-                                match = re.match(r'^(\d+)\.\s*', para_start)
-                                if match:
-                                    # Found plain-text number pattern at paragraph start
-                                    # CRITICAL: Work directly on para.Range, NOT a duplicate!
-                                    find = para.Range.Find
-                                    find.ClearFormatting()
-                                    find.Replacement.ClearFormatting()
-                                    # Match digits followed by dot at very start (with optional leading space)
-                                    find.Text = "^[ ]{0,}([0-9]{1,})."
-                                    find.Replacement.Text = r"\1—"
-                                    find.MatchWildcards = True
-                                    find.Forward = True
-                                    find.Wrap = C.wdFindStop
-                                    find.Format = False
-                                    
-                                    try:
-                                        if find.Execute(Replace=C.wdReplaceOne):
-                                            changed += 1
-                                            replaced = True
-                                            fallback_post = para.Range.Text[:120].replace('\r', ' ').replace('\n', ' ')
-                                            errors.append(f"FALLBACK: Pg{pg} converted plain-text heading: '{fallback_post}...'")
-                                    except Exception as e:
-                                        errors.append(f"DEBUG: fallback find failed on pg{pg}: {str(e)}")
+                            errors.append(f"DEBUG: find failed on pg{pg}: {str(e)}")
 
                         # --- 3b) Remove space/tab immediately after em dash ---
                         find = para.Range.Find
                         find.ClearFormatting()
                         find.Replacement.ClearFormatting()
-                        find.Text = "—([ ^t]{1,})"   # any space(s) or tab(s) after em dash
+                        find.Text = "—([ ^t]{1,})"
                         find.Replacement.Text = "—"
                         find.MatchWildcards = True
                         find.Forward = True
                         find.Wrap = C.wdFindStop
                         find.Format = False
+                        
                         try:
                             find.Execute(Replace=C.wdReplaceOne)
                         except Exception:
@@ -195,7 +118,7 @@ def lists_dot_to_emdash_py(doc: Any, page_start: int = 1, page_end: int = 4) -> 
             "ok": True,
             "count_updated": changed,
             "page_range": f"{page_start}-{page_end}",
-            "description": f"Converted {changed} list numbers to em dashes"
+            "description": f"Converted {changed} list numbers to em dashes on pages {page_start}-{page_end}"
         }
 
         if errors:
