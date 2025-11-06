@@ -675,6 +675,338 @@ class LibreUnoEngine(Engine):
         # TODO: Implement UNO connection
         raise NotImplementedError("LibreOffice UNO engine not yet implemented")
 
+
+class DocxEngine(Engine):
+    """Engine implementation using python-docx for cross-platform operation.
+
+    This provides a subset of the Word COM features implemented using
+    the python-docx library. Some advanced features (bookmarks, content
+    controls, updating TOC/fields, full section break control, raw COM)
+    are intentionally left as NotImplemented or limited because python-docx
+    and the docx XML model do not expose them directly.
+    """
+
+    def __init__(self) -> None:
+        # import locally so module import does not fail when python-docx
+        # isn't installed; __init__ will raise then and caller can install
+        try:
+            from docx import Document as DocxDocument  # type: ignore
+            from docx.shared import Pt, Cm, Inches  # type: ignore
+        except Exception as e:
+            raise RuntimeError(
+                "python-docx is required for DocxEngine. Install with: pip install python-docx"
+            ) from e
+
+        self._DocxDocument = DocxDocument
+        self._Pt = Pt
+        self._Cm = Cm
+        self._Inches = Inches
+        self.doc = None
+
+    def open_document(self, path: Path) -> Any:
+        """Open a .docx file and return the python-docx Document object."""
+        self.doc = self._DocxDocument(str(path))
+        return self.doc
+
+    def close_document(self, doc: Any) -> None:
+        """python-docx has no close; just drop reference."""
+        self.doc = None
+
+    def save_as_new_docx(self, doc: Any, out_path: Path) -> None:
+        out_path.parent.mkdir(parents=True, exist_ok=True)
+        doc.save(str(out_path))
+
+    def export_pdf(self, doc: Any, out_pdf: Path) -> None:
+        """Export to PDF is not provided by python-docx; recommend using
+        unoconv/libreoffice in a separate step for reliable PDF output.
+        """
+        raise NotImplementedError(
+            "Export to PDF is not supported by DocxEngine; run LibreOffice conversion separately."
+        )
+
+    def select_by_style(self, doc: Any, styles: list[str]) -> list[Any]:
+        ranges = []
+        for para in doc.paragraphs:
+            try:
+                name = para.style.name if para.style is not None else None
+            except Exception:
+                name = None
+            if name in styles:
+                ranges.append(para)
+        logger.debug(f"Selected {len(ranges)} paragraphs by style: {styles}")
+        return ranges
+
+    def select_by_regex(
+        self, doc: Any, pattern: str, scope: str, flags: list[str], page_range: str | None
+    ) -> list[Any]:
+        ranges = []
+        re_flags = 0
+        if flags and "IGNORECASE" in flags:
+            re_flags |= re.I
+        compiled = re.compile(pattern, re_flags)
+
+        # Search paragraphs and table cells
+        for para in doc.paragraphs:
+            if compiled.search(para.text or ""):
+                ranges.append(para)
+
+        for table in doc.tables:
+            for row in table.rows:
+                for cell in row.cells:
+                    if compiled.search(cell.text or ""):
+                        # append cell object
+                        ranges.append(cell)
+
+        logger.debug(f"Selected {len(ranges)} ranges by regex: {pattern}")
+        return ranges
+
+    def select_by_bookmark(self, doc: Any, names: list[str]) -> list[Any]:
+        # python-docx does not have bookmark API; return empty list
+        logger.debug("Bookmarks not supported by python-docx")
+        return []
+
+    def select_by_content_control(self, doc: Any, titles: list[str]) -> list[Any]:
+        logger.debug("Content controls not supported by python-docx")
+        return []
+
+    def select_by_table(
+        self, doc: Any, index: int | None, style: str | None, contains_text: str | None
+    ) -> list[Any]:
+        ranges = []
+        for i, table in enumerate(doc.tables, start=1):
+            if index is not None and i != index:
+                continue
+            if style is not None:
+                try:
+                    if table.style.name != style:
+                        continue
+                except Exception:
+                    pass
+            if contains_text is not None and contains_text not in table.cell(0, 0).text:
+                # crude contains test; fall back to full table text
+                full = "\n".join([c.text for row in table.rows for c in row.cells])
+                if contains_text not in full:
+                    continue
+            ranges.append(table)
+        logger.debug(f"Selected {len(ranges)} tables")
+        return ranges
+
+    def select_by_range(
+        self,
+        doc: Any,
+        section: str | None,
+        paragraph_indexes: list[int] | None,
+        pages: str | None,
+    ) -> list[Any]:
+        ranges = []
+        if paragraph_indexes:
+            for idx in paragraph_indexes:
+                if 1 <= idx <= len(doc.paragraphs):
+                    ranges.append(doc.paragraphs[idx - 1])
+        # section/pages selectors are not fully supported
+        logger.debug(f"Selected {len(ranges)} ranges by range selector")
+        return ranges
+
+    def apply_paragraph_format(self, ranges: list[Any], fmt: dict[str, Any]) -> int:
+        count = 0
+        for para in ranges:
+            pf = para.paragraph_format
+            if "line_spacing" in fmt:
+                try:
+                    pf.line_spacing = float(fmt["line_spacing"])  # simple numeric multiplier
+                except Exception:
+                    pass
+            if "space_before" in fmt:
+                pf.space_before = self._parse_unit(fmt["space_before"])
+            if "space_after" in fmt:
+                pf.space_after = self._parse_unit(fmt["space_after"])
+            if "first_line_indent" in fmt:
+                pf.first_line_indent = self._parse_unit(fmt["first_line_indent"])
+            if "left_indent" in fmt:
+                pf.left_indent = self._parse_unit(fmt["left_indent"])
+            if "right_indent" in fmt:
+                pf.right_indent = self._parse_unit(fmt["right_indent"])
+            count += 1
+        logger.debug(f"Applied paragraph format to {count} ranges")
+        return count
+
+    def apply_style(self, ranges: list[Any], style_name: str) -> int:
+        count = 0
+        for para in ranges:
+            try:
+                para.style = style_name
+                count += 1
+            except Exception:
+                logger.debug(f"Failed to set style '{style_name}' on paragraph")
+        logger.debug(f"Applied style '{style_name}' to {count} ranges")
+        return count
+
+    def apply_numbering(self, ranges: list[Any], numbering: dict[str, Any]) -> int:
+        # python-docx has only limited support for numbering via styles
+        count = 0
+        list_style = numbering.get("list_style")
+        for para in ranges:
+            if list_style:
+                try:
+                    para.style = list_style
+                except Exception:
+                    pass
+            count += 1
+        logger.debug(f"Applied numbering (limited) to {count} ranges")
+        return count
+
+    def set_headers_footers(self, doc: Any, config: dict[str, Any]) -> None:
+        for section in doc.sections:
+            if "header" in config:
+                hdr = section.header
+                hdr.is_linked_to_previous = False
+                hdr_para = hdr.paragraphs[0] if hdr.paragraphs else hdr.add_paragraph()
+                hdr_para.text = config["header"].get("center", "")
+            if "footer" in config:
+                ftr = section.footer
+                ftr_para = ftr.paragraphs[0] if ftr.paragraphs else ftr.add_paragraph()
+                ftr_para.text = config["footer"].get("center", "")
+        logger.debug("Set headers/footers (limited)")
+
+    def update_fields_and_toc(self, doc: Any, update_all: bool, update_toc: bool) -> None:
+        raise NotImplementedError("python-docx cannot update fields or TOC programmatically")
+
+    def find_replace(
+        self,
+        doc: Any,
+        find: str,
+        replace: str,
+        regex: bool,
+        wildcards: bool,
+        whole_word: bool,
+        match_case: bool,
+    ) -> int:
+        count = 0
+        if regex:
+            pattern = re.compile(find)
+            for para in doc.paragraphs:
+                new = pattern.sub(replace, para.text)
+                if new != para.text:
+                    para.text = new
+                    count += 1
+        else:
+            for para in doc.paragraphs:
+                if (match_case and find in para.text) or (not match_case and find.lower() in para.text.lower()):
+                    if match_case:
+                        para.text = para.text.replace(find, replace)
+                    else:
+                        # case-insensitive replace
+                        para.text = re.compile(re.escape(find), re.I).sub(replace, para.text)
+                    count += 1
+        logger.debug(f"Find/replace: {count} paragraphs modified")
+        return count
+
+    def apply_page_setup(self, doc: Any, setup: dict[str, Any]) -> None:
+        for section in doc.sections:
+            if "margins" in setup:
+                margins = setup["margins"]
+                if "top" in margins:
+                    section.top_margin = self._parse_unit(margins["top"])
+                if "bottom" in margins:
+                    section.bottom_margin = self._parse_unit(margins["bottom"])
+                if "left" in margins:
+                    section.left_margin = self._parse_unit(margins["left"])
+                if "right" in margins:
+                    section.right_margin = self._parse_unit(margins["right"])
+            if "orientation" in setup:
+                # python-docx uses section.orientation but mapping specifics may vary
+                pass
+        logger.debug("Applied page setup (limited)")
+
+    def insert_section_break(
+        self, doc: Any, before_selector: bool, break_type: str
+    ) -> None:
+        # python-docx support for inserting specific section breaks is limited.
+        try:
+            from docx.enum.section import WD_SECTION  # type: ignore
+
+            mapping = {
+                "next_page": WD_SECTION.NEW_PAGE,
+                "continuous": WD_SECTION.CONTINUOUS,
+                "even_page": WD_SECTION.EVEN_PAGE,
+                "odd_page": WD_SECTION.ODD_PAGE,
+            }
+            kind = mapping.get(break_type, WD_SECTION.NEW_PAGE)
+            doc.add_section(kind)
+        except Exception:
+            raise NotImplementedError("Insert section break is limited in python-docx")
+
+    def replace_bookmark_text(self, doc: Any, name: str, text: str) -> None:
+        # Not supported
+        logger.debug("replace_bookmark_text not supported in DocxEngine")
+
+    def replace_content_control_text(self, doc: Any, title_or_tag: str, text: str) -> None:
+        logger.debug("replace_content_control_text not supported in DocxEngine")
+
+    def format_table(self, doc: Any, config: dict[str, Any]) -> None:
+        index = config.get("index")
+        if index and 1 <= index <= len(doc.tables):
+            table = doc.tables[index - 1]
+            if "style" in config:
+                try:
+                    table.style = config["style"]
+                except Exception:
+                    pass
+
+    def insert_image(self, doc: Any, config: dict[str, Any]) -> None:
+        path = config["path"]
+        anchor = config.get("anchor", "inline")
+        width = config.get("width")
+        height = config.get("height")
+        # Try to insert into document at end; more advanced placement requires run.add_picture
+        try:
+            if width:
+                doc.add_picture(path, width=self._parse_unit(width))
+            else:
+                doc.add_picture(path)
+        except Exception:
+            logger.debug("Failed to add picture via document API")
+
+    def raw_word_com(self, doc: Any, commands: list[dict[str, Any]]) -> None:
+        logger.warning("raw_word_com not supported in DocxEngine (Word-only feature)")
+
+    def snapshot(self, doc: Any) -> dict[str, Any]:
+        snap = {
+            "paragraph_count": len(doc.paragraphs),
+            "tables_count": len(doc.tables),
+            "sections_count": len(doc.sections),
+        }
+        return snap
+
+    def shutdown(self) -> None:
+        pass
+
+    def _parse_unit(self, value: str):
+        """Parse unit strings into python-docx length objects (Pt or Inches).
+
+        Returns a float (points) for assignment to margin/indent properties which
+        python-docx accepts as EMU-friendly floats (Pt(...) objects are accepted).
+        """
+        if isinstance(value, (int, float)):
+            return self._Pt(float(value))
+
+        value = str(value).strip().lower()
+        if value.endswith("pt"):
+            return self._Pt(float(value[:-2]))
+        if value.endswith("cm"):
+            return self._Cm(float(value[:-2]))
+        if value.endswith("in"):
+            return self._Inches(float(value[:-2]))
+        if value.endswith("mm"):
+            # convert mm to cm
+            return self._Cm(float(value[:-2]) / 10.0)
+        # fallback assume points
+        try:
+            return self._Pt(float(value))
+        except Exception:
+            return self._Pt(0)
+
+
     def open_document(self, path: Path) -> Any:
         raise NotImplementedError()
 
@@ -797,6 +1129,10 @@ def pick_engine(engine_hint: str) -> Engine:
     elif engine_hint == "libre":
         return LibreUnoEngine()
 
+    elif engine_hint == "docx":
+        # Use python-docx engine (cross-platform)
+        return DocxEngine()
+
     else:  # auto
         if platform.system() == "Windows":
             try:
@@ -804,11 +1140,17 @@ def pick_engine(engine_hint: str) -> Engine:
             except Exception as e:
                 logger.warning(f"Word COM unavailable: {e}")
 
+        # Try python-docx as a cross-platform fallback first
+        try:
+            return DocxEngine()
+        except Exception as e:
+            logger.warning(f"DocxEngine unavailable: {e}")
+
         # Try UNO fallback
         try:
             return LibreUnoEngine()
         except NotImplementedError:
             raise RuntimeError(
-                "No engine available. Install Microsoft Word (Windows) "
+                "No engine available. Install python-docx, Microsoft Word (Windows) "
                 "or LibreOffice with UNO bindings."
             )

@@ -1,75 +1,82 @@
 from __future__ import annotations
 from typing import Any
-from win32com.client import constants as C
+import re
 
 def no_space_after_number_all_lists_fix_py(doc: Any) -> dict:
     """
-    Removes space after number for all list levels in the document.
-    Applies consistent formatting by setting TrailingCharacter to None,
-    aligning TextPosition with NumberPosition, and removing tab stops.
-    
-    CRITICAL: Must reapply list template for changes to take effect!
+    Removes space after number for all list levels. For python-docx this is
+    implemented as text-level adjustments (replacing "1. " with "1." or
+    converting to em dash depending on original recipe semantics).
+    The COM implementation attempts to change list templates; kept as fallback.
     """
-    app = doc.Application
-    app.ScreenUpdating = False
-    changed = 0
-    errors = []
-
+    # python-docx path: simple regex replace in paragraphs
     try:
+        if hasattr(doc, "paragraphs"):
+            changed = 0
+            # Replace digit + dot + space (e.g., "1. ") with digit + dot (remove space)
+            pat = re.compile(r"(\d+\.)[ \t]+")
+            for para in doc.paragraphs:
+                text = para.text or ""
+                new = pat.sub(r"\1", text)
+                if new != text:
+                    para.text = new
+                    changed += 1
+
+            return {"ok": True, "count_updated": changed, "description": f"Updated {changed} paragraphs (removed space after number) (docx)"}
+    except Exception:
+        pass
+
+    # Fallback: COM implementation
+    try:
+        from win32com.client import constants as C
+
+        app = doc.Application
+        app.ScreenUpdating = False
+        changed = 0
+        errors = []
+
         for para in doc.Paragraphs:
             try:
-                # Get list format for the paragraph
                 lf = para.Range.ListFormat
-                if lf.ListType != C.wdListNoNumbering:  # Skip if not a list
+                if lf.ListType != C.wdListNoNumbering:
                     try:
-                        # Get the list level details
                         lvl_number = lf.ListLevelNumber
                         list_template = lf.ListTemplate
                         lvl = list_template.ListLevels(lvl_number)
 
-                        # Store original values to detect if changes needed
                         needs_update = (
                             lvl.TrailingCharacter != C.wdTrailingNone or
                             lvl.TextPosition != lvl.NumberPosition or
                             lvl.TabPosition != C.wdUndefined
                         )
-                        
+
                         if needs_update:
-                            # Apply formatting changes
                             lvl.TrailingCharacter = C.wdTrailingNone
                             lvl.TextPosition = lvl.NumberPosition
                             lvl.TabPosition = C.wdUndefined
 
-                            # CRITICAL: Reapply list template to make changes stick
                             para.Range.ListFormat.ApplyListTemplateWithLevel(
                                 ListTemplate=list_template,
                                 ContinuePreviousList=True,
                                 ApplyTo=C.wdListApplyToWholeList,
-                                ApplyLevel=lvl_number
+                                ApplyLevel=lvl_number,
                             )
                             changed += 1
 
                     except Exception as e:
                         errors.append(f"Error processing list level at position {para.Range.Start}: {str(e)}")
-            except Exception as e:
-                # Skip non-list paragraphs silently
+            except Exception:
                 pass
 
-        # Prepare result with essential information
-        result = {
-            "ok": True,
-            "count_updated": changed,
-            "description": f"Updated {changed} list paragraphs (removed space after number)"
-        }
-        
-        # Add warnings if any errors occurred (but only first 10 to avoid spam)
+        result = {"ok": True, "count_updated": changed, "description": f"Updated {changed} list paragraphs (removed space after number)"}
         if errors:
             result["warnings"] = errors[:10]
             if len(errors) > 10:
                 result["warnings"].append(f"... and {len(errors) - 10} more errors")
-            
         return result
 
     finally:
-        # Always restore screen updating
-        app.ScreenUpdating = True
+        try:
+            app.ScreenUpdating = True
+        except Exception:
+            pass

@@ -35,7 +35,15 @@ def discover_word_recipes() -> dict[str, Any]:
         if mod_name.startswith("_") or mod_name in SKIP_FILES:
             continue
         try:
-            module = importlib.import_module(f".recipes_word.{mod_name}", package="myapp.processor")
+            # Resolve package dynamically so discovery works whether the package
+            # is imported as 'myapp.processor' or 'Distill.myapp.processor'.
+            pkg_name = getattr(recipes_pkg, "__package__", None) or recipes_pkg.__name__
+            # Normalise package name: if the package value already includes
+            # the 'recipes_word' suffix, strip it so we don't duplicate it.
+            if pkg_name.endswith(".recipes_word"):
+                pkg_name = pkg_name[: -len(".recipes_word")]
+            module_path = f"{pkg_name}.recipes_word.{mod_name}"
+            module = importlib.import_module(module_path)
             for attr_name in dir(module):
                 if attr_name.endswith("_py"):
                     fn = getattr(module, attr_name)
@@ -210,8 +218,9 @@ def _apply_action(
         if not enabled:
             log.info("word_recipe '%s' disabled; skipping", name)
             return 0
-        if not isinstance(engine, WordComEngine):
-            raise RuntimeError(f"word_recipe '{name}' requires the WordComEngine")
+        # Allow recipes to run on non-COM engines (e.g., DocxEngine) as long as
+        # the recipe implementation supports python-docx Document objects.
+        # Legacy recipes that require Word COM may still fail at runtime.
 
         fn = RECIPE_REGISTRY.get(name)
         if not callable(fn):

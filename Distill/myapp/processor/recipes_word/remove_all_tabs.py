@@ -1,22 +1,40 @@
 from __future__ import annotations
 from typing import Any
-from win32com.client import constants as C
+import re
 
 def remove_all_tabs_py(doc: Any) -> dict:
     """
-    Removes all tab characters from the document using Find/Replace.
-    This helps standardize spacing and prevent formatting inconsistencies.
+    Removes all tab characters from the document. Supports python-docx Documents
+    (edits paragraph text) and falls back to Word COM Find/Replace where available.
     """
-    app = doc.Application
-    app.ScreenUpdating = False
-    changed = 0
-    errors = []
-
+    # python-docx path
     try:
+        if hasattr(doc, "paragraphs"):
+            changed = 0
+            for para in doc.paragraphs:
+                if "\t" in (para.text or ""):
+                    para.text = (para.text or "").replace("\t", "")
+                    changed += 1
+
+            return {
+                "ok": True,
+                "count_updated": changed,
+                "description": "All tab characters have been removed from the document (docx)"
+            }
+    except Exception:
+        pass
+
+    # Fallback to Word COM implementation
+    try:
+        app = doc.Application
+        app.ScreenUpdating = False
+        changed = 0
+        errors = []
+
         # Create a Range for the whole document
         rng = doc.Content
         find = rng.Find
-        
+
         # Store initial selection to restore later
         initial_start = app.Selection.Start
         initial_end = app.Selection.End
@@ -42,14 +60,16 @@ def remove_all_tabs_py(doc: Any) -> dict:
             )
 
             if replaced:
-                # Count occurrences by checking document length change
-                changed = 1  # We can't get exact count, but operation succeeded
-            
+                changed = 1
+
         except Exception as e:
             errors.append(f"Error during find/replace operation: {str(e)}")
 
         # Restore original selection
-        app.Selection.SetRange(initial_start, initial_end)
+        try:
+            app.Selection.SetRange(initial_start, initial_end)
+        except Exception:
+            pass
 
         result = {
             "ok": True,
@@ -63,4 +83,7 @@ def remove_all_tabs_py(doc: Any) -> dict:
         return result
 
     finally:
-        app.ScreenUpdating = True
+        try:
+            app.ScreenUpdating = True
+        except Exception:
+            pass

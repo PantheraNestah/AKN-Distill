@@ -36,7 +36,7 @@ class Step:
 
 @dataclass
 class Rules:
-    engine: Literal["auto", "word", "libre"] = "auto"
+    engine: Literal["auto", "word", "libre", "docx"] = "auto"
     safety: Safety = field(default_factory=Safety)
     steps: list[Step] = field(default_factory=list)
 
@@ -47,8 +47,8 @@ class Rules:
             raise ValueError("Top-level rules must be an object.")
 
         engine = raw.get("engine", "auto")
-        if engine not in ("auto", "word", "libre"):
-            raise ValueError("rules.engine must be one of: auto, word, libre")
+        if engine not in ("auto", "word", "libre", "docx"):
+            raise ValueError("rules.engine must be one of: auto, word, libre, docx")
 
         safety_raw = raw.get("safety", {}) or {}
         safety = Safety(

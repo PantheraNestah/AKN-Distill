@@ -5,13 +5,56 @@ from pathlib import Path
 import logging
 import os
 from django.conf import settings
-import win32com.client
-import pythoncom
+
+# Defer importing Windows-only COM libraries until needed. On non-Windows
+# systems these imports will not be present; importing them at module load
+# time causes Django to fail to start (ModuleNotFoundError). Use HAVE_WIN32
+# to gate COM-specific code paths.
+try:
+    import win32com.client  # type: ignore
+    import pythoncom  # type: ignore
+    HAVE_WIN32 = True
+except Exception:
+    win32com = None
+    pythoncom = None
+    HAVE_WIN32 = False
 import yaml
 from ..models import Document
 from ..processor import engines
 from ..processor.rules import Rules
 from ..processor import ops
+import subprocess
+
+def _convert_docx_to_pdf(docx_path: Path, pdf_path: Path) -> None:
+    """Convert a .docx file to PDF using LibreOffice/soffice headless.
+
+    This is a best-effort converter; it requires `soffice` (LibreOffice) to be
+    available on PATH. The function will raise RuntimeError if conversion fails.
+    """
+    # Prefer soffice (LibreOffice); some systems have `libreoffice` binary name
+    cmd_candidates = [
+        ["soffice", "--headless", "--convert-to", "pdf", "--outdir", str(pdf_path.parent), str(docx_path)],
+        ["libreoffice", "--headless", "--convert-to", "pdf", "--outdir", str(pdf_path.parent), str(docx_path)],
+    ]
+
+    for cmd in cmd_candidates:
+        try:
+            res = subprocess.run(cmd, check=False, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        except FileNotFoundError:
+            continue
+
+        if res.returncode == 0:
+            # LibreOffice will create a file named <stem>.pdf in outdir
+            if pdf_path.exists():
+                return
+            # Try common output name
+            alt = pdf_path.parent / (docx_path.stem + ".pdf")
+            if alt.exists():
+                alt.replace(pdf_path)
+                return
+        # else try next candidate
+
+    raise RuntimeError("Failed to convert DOCX to PDF: soffice/libreoffice not available or conversion failed")
 
 logger = logging.getLogger(__name__)
 
@@ -53,30 +96,15 @@ class DocumentProcessingService:
                 pass
             
             if progress_callback:
-                progress_callback(5, "Initializing Word...")
+                progress_callback(5, "Initializing docx engine...")
 
-            # Initialize engine with proper COM setup
-            self.engine = None
-            for retry in range(3):  # Retry up to 3 times
-                try:
-                    self.engine = engines.WordComEngine()
-                    # Get Word application from engine
-                    self.word_app = self.engine.app
-                    self.word_app.Visible = False  # Ensure Word stays hidden
-                    self.word_app.DisplayAlerts = False  # Suppress Word dialogs
-                    break
-                except Exception as e:
-                    logger.warning(f"Word initialization attempt {retry + 1} failed: {str(e)}")
-                    if retry == 2:  # Last attempt failed
-                        raise
-                    try:
-                        pythoncom.CoUninitialize()
-                        pythoncom.CoInitialize()
-                    except:
-                        pass
-            
+            # Use the cross-platform DocxEngine
+            self.engine = engines.pick_engine("docx")
+            # No special app object for python-docx
+            self.word_app = None
+
             if progress_callback:
-                progress_callback(10, "Word initialized successfully")
+                progress_callback(10, "Docx engine initialized successfully")
             
             # Determine which file to open:
             # If this is not the first rule and processed_file exists, use it
@@ -88,11 +116,11 @@ class DocumentProcessingService:
                 file_to_process = document.original_file.path
                 logger.info(f"Processing original file: {file_to_process}")
             
-            # Open document
+            # Open document using engine
             if progress_callback:
                 progress_callback(15, "Opening document...")
 
-            doc = self.word_app.Documents.Open(file_to_process)
+            doc = self.engine.open_document(Path(file_to_process))
             
             try:
                 # Create output directories if they don't exist
@@ -137,49 +165,41 @@ class DocumentProcessingService:
                 docx_name = f"{Path(document.original_file.name).stem}_processed.docx"
                 docx_path = pdf_dir / docx_name
                 
-                # Save changes to the current document first
-                doc.Save()  # Save in-place changes
-                
-                # Save as new processed file
-                doc.SaveAs2(str(docx_path), FileFormat=16)  # 16 = .docx format
-                
+                # Save processed DOCX using engine
+                if progress_callback:
+                    progress_callback(75, "Saving processed DOCX...")
+
+                try:
+                    self.engine.save_as_new_docx(doc, docx_path)
+                except Exception:
+                    # As a fallback, if engine provides a direct save method on doc
+                    try:
+                        doc.save(str(docx_path))
+                    except Exception as e:
+                        raise
+
                 # Update document record to point to processed file
-                # This ensures the next rule will work on the updated document
                 document.processed_file = f"processed/{docx_name}"
                 document.save()
-                
+
                 if progress_callback:
-                    progress_callback(80, "Reopening document for PDF conversion...")
-                
-                # Close and reopen to ensure all changes are persisted
-                doc.Close(SaveChanges=False)
-                doc = self.word_app.Documents.Open(str(docx_path))
-                
-                # Export to PDF using ExportAsFixedFormat (proper method for PDF export)
-                if progress_callback:
-                    progress_callback(85, "Converting to PDF...")
+                    progress_callback(80, "Converting to PDF...")
 
                 pdf_name = f"{Path(document.original_file.name).stem}_processed.pdf"
                 pdf_path = pdf_dir / pdf_name
-                
-                # Use ExportAsFixedFormat instead of SaveAs2 for PDF
-                # wdExportFormatPDF = 17, wdExportOptimizeForPrint = 0
-                doc.ExportAsFixedFormat(
-                    OutputFileName=str(pdf_path),
-                    ExportFormat=17,  # wdExportFormatPDF
-                    OpenAfterExport=False,
-                    OptimizeFor=0,  # wdExportOptimizeForPrint
-                    CreateBookmarks=1,  # wdExportCreateHeadingBookmarks
-                    DocStructureTags=True
-                )
-                
+
+                # Convert DOCX to PDF using LibreOffice headless
+                try:
+                    _convert_docx_to_pdf(docx_path, pdf_path)
+                except Exception as e:
+                    logger.warning(f"PDF conversion failed: {e}")
+                    raise
+
                 # Update document record with both files
                 if progress_callback:
                     progress_callback(95, "Finalizing...")
 
                 document.pdf_file = f"processed/{pdf_name}"  # PDF
-                # DON'T set status to COMPLETED here - let the task processor handle it
-                # document.status = 'COMPLETED'
                 document.save()
 
                 if progress_callback:
@@ -198,7 +218,7 @@ class DocumentProcessingService:
             return False
             
         finally:
-            # Cleanup in reverse order of creation
+                # Cleanup in reverse order of creation
             if self.word_app:
                 try:
                     for doc in self.word_app.Documents:
@@ -209,18 +229,21 @@ class DocumentProcessingService:
                     self.word_app.Quit()
                 except:
                     pass
-                
+
                 # Force cleanup of any remaining Word processes if needed
                 try:
-                    import win32com.client
-                    win32com.client.Dispatch("WScript.Shell").Run("taskkill /f /im WINWORD.EXE", 0, True)
-                except:
+                    if HAVE_WIN32 and win32com:
+                        win32com.client.Dispatch("WScript.Shell").Run("taskkill /f /im WINWORD.EXE", 0, True)
+                except Exception:
                     pass
                     
             # COM cleanup is handled by the background task
     def _initialize_word_engine(self):
         """Initialize Word COM engine"""
-        # Initialize Word
+        # Initialize Word (deferred import)
+        if not HAVE_WIN32:
+            raise RuntimeError("Word COM not available on this platform")
         self.word_app = win32com.client.Dispatch("Word.Application")
         self.word_app.Visible = False
         return engines.WordComEngine()
+    
